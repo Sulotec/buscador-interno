@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+.vs/
+.git/
+.gitignore
+# Secretos y paquetes: no deben entrar al contexto de construcción (el .env tiene las claves reales)
+.env
+.env.*
+.credenciales-admin.txt
+artifacts/
+deploy/
+
+# Datos y archivos de trabajo que no deben entrar en la imagen
+reportes/
+database/
+**/appsettings.Development.json
+**/*.user

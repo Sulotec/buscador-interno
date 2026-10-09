@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="internal-search-backend.Business/internal-search-backend.Business.csproj" />
+  <Project Path="internal-search-backend.Infraestructure/internal-search-backend.Infraestructure.csproj" />
+  <Project Path="internal-search-backend/internal-search-backend.Api.csproj" />
+  <Project Path="internal-search.Domain/internal-search-backend.Domain.csproj" />
+</Solution>

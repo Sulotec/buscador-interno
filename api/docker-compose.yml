@@ -1,0 +1,39 @@
+# API + túnel para una máquina DENTRO de la red de la oficina (la que alcanza la base de datos).
+#   1) cp .env.example .env   y completar los valores
+#   2) docker compose up -d --build            (solo la API, accesible en 127.0.0.1:8080)
+#   3) docker compose --profile tunel up -d    (además publica la API por HTTPS con Cloudflare Tunnel)
+# Ver DESPLIEGUE.md.
+
+services:
+  api:
+    build: .
+    image: buscador-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # El contenedor solo es alcanzable por el túnel (el puerto se publica únicamente en localhost),
+      # por eso es seguro confiar en las cabeceras X-Forwarded-* que él agrega.
+      Proxy__ConfiarEnCabeceras: "true"
+      # Hora de Lima, igual que la oficina y el entorno de desarrollo (por defecto el contenedor usa UTC y
+      # las fechas de creación/actualización que escribe la aplicación saldrían 5 horas adelantadas).
+      TZ: America/Lima
+    ports:
+      # Puerto del lado de la máquina (API_PUERTO en .env, por defecto 8080). Solo en localhost.
+      - "127.0.0.1:${API_PUERTO:-8080}:8080"
+    volumes:
+      # Excel del historial de descargas: sobrevive a `docker compose up -d --build`.
+      # (`docker compose down -v` sí los borra.)
+      - historial:/data
+
+  tunel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - api
+
+volumes:
+  historial:

@@ -1,0 +1,26 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build
+bin/
+obj/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+
+# NuGet
+packages/
+*.nupkg
+# Despliegue: configuración con secretos reales
+.env
+appsettings.Production.json
+
+# Paquete para el servidor de Windows (lo genera deploy/windows/publicar-servidor.ps1)
+artifacts/
+
+# Credenciales locales de esta PC (nunca se versionan)
+.credenciales-admin.txt

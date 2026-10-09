@@ -1,0 +1,31 @@
+# Dependencias y compilados
+node_modules/
+.next/
+out/
+bin/
+obj/
+artifacts/
+*.tsbuildinfo
+next-env.d.ts
+
+# Editores
+.vs/
+.vscode/
+*.user
+*.suo
+*.rsuser
+.DS_Store
+
+# Secretos: nunca se versionan
+.env
+.env.*
+!.env.example
+appsettings.Production.json
+.credenciales-admin.txt
+github-token.txt
+
+# Datos reales: nunca van a GitHub
+reportes/
+*.xlsx
+*.xls
+*.bak
