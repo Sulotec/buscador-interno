@@ -8,14 +8,18 @@ import { useSesion } from '@/modulos/sesion/proveedor';
 import { Aviso, Boton, Cargando, Encabezado, Pestanas, Tabla, Tarjeta, Vacio } from '@/components/ui';
 import { ErrorApi } from '@/lib/api';
 import { servicioPersonas } from '@/modulos/personas/servicio';
+import { DOCUMENTOS, esTipoDocumento, validarDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
+import { SelectorDocumento } from '@/modulos/personas/selector-documento';
 import { fNumero } from '@/lib/formato';
 import type { ResultadoPersona, ResultadoReniec, ResultadoTelefono } from '@/modulos/personas/tipos';
 
-type Modo = 'dni' | 'telefono' | 'nombres';
+type Modo = 'documento' | 'telefono' | 'nombres';
 
 export default function Personas() {
   const { actualizarSaldo } = useSesion();
-  const [modo, setModo] = useState<Modo>('dni');
+  const [modo, setModo] = useState<Modo>('documento');
+  const [tipo, setTipo] = useState<TipoDocumento>('DNI');
+  const [consultado, setConsultado] = useState<{ tipo: TipoDocumento; numero: string } | null>(null);
   const [inicial, setInicial] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -26,11 +30,12 @@ export default function Personas() {
 
   const limpiar = () => { setError(''); setPersona(null); setReniec(null); setTelefono(null); };
 
-  const buscarDni = useCallback(async (dni: string) => {
+  const buscarDocumento = useCallback(async (t: TipoDocumento, numero: string) => {
     limpiar();
+    setConsultado({ tipo: t, numero });
     setCargando(true);
     try {
-      setPersona(await servicioPersonas.porDni(dni));
+      setPersona(await servicioPersonas.porDocumento(t, numero));
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo realizar la consulta.');
     } finally {
@@ -65,13 +70,15 @@ export default function Personas() {
     }
   }
 
-  // Busqueda que llega desde Inicio (?dni= o ?telefono=)
+  // Busqueda que llega desde Inicio (?dni=, ?tipo=CE&documento=... o ?telefono=)
   useEffect(() => {
     const q = new URLSearchParams(location.search);
     const dni = q.get('dni'); const tel = q.get('telefono');
-    if (dni) { setModo('dni'); setInicial(dni); buscarDni(dni); }
+    const t = q.get('tipo'); const doc = q.get('documento');
+    if (doc && esTipoDocumento(t)) { setModo('documento'); setTipo(t); setInicial(doc); buscarDocumento(t, doc); }
+    else if (dni) { setModo('documento'); setTipo('DNI'); setInicial(dni); buscarDocumento('DNI', dni); }
     else if (tel) { setModo('telefono'); setInicial(tel); buscarTelefono(tel); }
-  }, [buscarDni, buscarTelefono]);
+  }, [buscarDocumento, buscarTelefono]);
 
   return (
     <div className="space-y-6">
@@ -79,16 +86,19 @@ export default function Personas() {
       <Pestanas<Modo>
         valor={modo} alCambiar={(m) => { setModo(m); limpiar(); setInicial(''); }}
         opciones={[
-          { id: 'dni', texto: 'DNI', icono: <IdCard className="size-4" /> },
+          { id: 'documento', texto: 'Documento', icono: <IdCard className="size-4" /> },
           { id: 'telefono', texto: 'Teléfono', icono: <Phone className="size-4" /> },
           { id: 'nombres', texto: 'Apellidos y nombres', icono: <UserRound className="size-4" /> },
         ]}
       />
 
       <Tarjeta>
-        {modo === 'dni' && (
-          <BarraBusqueda key={`dni-${inicial}`} etiqueta="DNI" placeholder="DNI de 8 dígitos" valorInicial={inicial} cargando={cargando}
-            validar={(v) => (/^\d{8}$/.test(v) ? null : 'El DNI debe tener 8 dígitos.')} alBuscar={buscarDni} />
+        {modo === 'documento' && (
+          <BarraBusqueda key={`doc-${tipo}-${inicial}`} etiqueta={DOCUMENTOS[tipo].etiqueta}
+            placeholder={`${DOCUMENTOS[tipo].etiqueta}: ${DOCUMENTOS[tipo].descripcion}`} valorInicial={inicial} cargando={cargando}
+            numerica={DOCUMENTOS[tipo].soloNumeros} longitudMaxima={DOCUMENTOS[tipo].longitudMaxima} mayusculas sinEspacios
+            prefijo={<SelectorDocumento valor={tipo} alCambiar={(t) => { setTipo(t); limpiar(); setInicial(''); }} />}
+            validar={(v) => validarDocumento(tipo, v)} alBuscar={(v) => buscarDocumento(tipo, v)} />
         )}
         {modo === 'telefono' && (
           <BarraBusqueda key={`tel-${inicial}`} etiqueta="Teléfono" placeholder="Celular de 9 dígitos" valorInicial={inicial} cargando={cargando}
@@ -107,10 +117,10 @@ export default function Personas() {
       {persona && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="numeros text-lg font-semibold text-texto">DNI {persona.documento}</h2>
-            {!reniec && <Boton variante="secundario" onClick={consultarReniec} cargando={cargandoReniec}><IdCard className="size-4" />Ver datos RENIEC</Boton>}
+            <h2 className="numeros text-lg font-semibold text-texto">{DOCUMENTOS[consultado?.tipo ?? 'DNI'].etiqueta} {persona.documento}</h2>
+            {consultado?.tipo === 'DNI' && !reniec && <Boton variante="secundario" onClick={consultarReniec} cargando={cargandoReniec}><IdCard className="size-4" />Ver datos RENIEC</Boton>}
           </div>
-          {!persona.esDniValido && <Aviso tono="alerta">El DNI no figura como válido en las fuentes consultadas.</Aviso>}
+          {consultado?.tipo === 'DNI' && !persona.esDniValido && <Aviso tono="alerta">El DNI no figura como válido en las fuentes consultadas.</Aviso>}
           {reniec && <FichaReniec r={reniec} />}
           <Resumen s={persona} />
           <SeccionesResultado s={persona} />
