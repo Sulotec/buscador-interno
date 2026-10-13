@@ -51,7 +51,7 @@ export function ipCliente(cabeceras: Headers): string {
   );
 }
 
-// SEDES_IPS: lista separada por comas de IPs o rangos IPv4 (ej. "200.1.2.3/32,190.4.5.0/29").
+// SEDES_IPS: lista separada por comas de IPs o rangos IPv4 o IPv6 (ej. "200.1.2.3/32,190.4.5.0/29,2800:200:1:2::/64").
 // Sin configurar = ninguna sede habilitada (solo ADMIN GENERAL puede entrar).
 function sedes(): string[] {
   return (process.env.SEDES_IPS ?? '')
@@ -60,29 +60,68 @@ function sedes(): string[] {
     .filter(Boolean);
 }
 
-function ipANumero(ip: string): number | null {
+interface IpNumerica {
+  n: bigint;
+  bits: 32 | 128;
+}
+
+function ipv4ANumero(ip: string): bigint | null {
   const partes = ip.split('.');
   if (partes.length !== 4) return null;
-  let n = 0;
+  let n = BigInt(0);
   for (const p of partes) {
-    const v = Number(p);
-    if (!Number.isInteger(v) || v < 0 || v > 255) return null;
-    n = n * 256 + v;
+    if (!/^\d{1,3}$/.test(p) || Number(p) > 255) return null;
+    n = n * BigInt(256) + BigInt(p);
   }
   return n;
 }
 
+// IPv4 o IPv6 (con "::" y, si viene, un IPv4 al final). Una IPv4 mapeada en IPv6 (::ffff:a.b.c.d) cuenta como IPv4.
+function analizarIp(texto: string): IpNumerica | null {
+  let ip = texto.trim().split('%')[0];
+  if (!ip.includes(':')) {
+    const n = ipv4ANumero(ip);
+    return n === null ? null : { n, bits: 32 };
+  }
+
+  const v4 = ip.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (v4) {
+    const n4 = ipv4ANumero(v4[1]);
+    if (n4 === null) return null;
+    const alto = (n4 >> BigInt(16)).toString(16);
+    const bajo = (n4 & BigInt(0xffff)).toString(16);
+    ip = `${ip.slice(0, -v4[1].length)}${alto}:${bajo}`;
+  }
+
+  const mitades = ip.split('::');
+  if (mitades.length > 2) return null;
+  const grupos = (s: string) => (s === '' ? [] : s.split(':'));
+  const cabeza = grupos(mitades[0]);
+  const cola = mitades.length === 2 ? grupos(mitades[1]) : [];
+  const relleno = mitades.length === 2 ? 8 - cabeza.length - cola.length : 0;
+  if (cabeza.length + cola.length + relleno !== 8 || (mitades.length === 2 && relleno < 1)) return null;
+
+  let n = BigInt(0);
+  for (const g of [...cabeza, ...Array<string>(relleno).fill('0'), ...cola]) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+    n = (n << BigInt(16)) | BigInt(parseInt(g, 16));
+  }
+  const mapeada = (n >> BigInt(32)) === BigInt(0xffff);
+  return mapeada ? { n: n & BigInt(0xffffffff), bits: 32 } : { n, bits: 128 };
+}
+
 export function enSede(ip: string): boolean {
-  const n = ipANumero(ip);
-  if (n === null) return false;
+  const cliente = analizarIp(ip);
+  if (!cliente) return false;
   return sedes().some((rango) => {
-    const [base, bitsTexto] = rango.split('/');
-    const b = ipANumero(base);
-    if (b === null) return false;
-    const bits = bitsTexto === undefined ? 32 : Number(bitsTexto);
-    if (!Number.isInteger(bits) || bits < 0 || bits > 32) return false;
-    const tamano = 2 ** (32 - bits);
-    return Math.floor(n / tamano) === Math.floor(b / tamano);
+    const [base, prefijoTexto] = rango.split('/');
+    const sede = analizarIp(base);
+    if (!sede || sede.bits !== cliente.bits) return false;
+    if (prefijoTexto !== undefined && !/^\d{1,3}$/.test(prefijoTexto)) return false;
+    const prefijo = prefijoTexto === undefined ? sede.bits : Number(prefijoTexto);
+    if (prefijo > sede.bits) return false;
+    const resto = BigInt(sede.bits - prefijo);
+    return (cliente.n >> resto) === (sede.n >> resto);
   });
 }
 
