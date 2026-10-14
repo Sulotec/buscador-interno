@@ -142,9 +142,22 @@ builder.Services
         };
     });
 
+// Motor de base de datos: SqlServer (por defecto, como hasta ahora) o Postgres. Se elige por configuracion
+// (Database:Provider, o la variable Database__Provider); la logica de la aplicacion es la misma en los dos.
+var esPostgres = string.Equals(builder.Configuration["Database:Provider"], "Postgres", StringComparison.OrdinalIgnoreCase);
+if (esPostgres)
+{
+    // El codigo mezcla DateTime.Now y DateTime.UtcNow en columnas sin zona horaria (como en SQL Server):
+    // este modo de Npgsql conserva ese comportamiento en lugar de rechazar las fechas UTC.
+    AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-);
+{
+    var conexion = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (esPostgres) options.UseNpgsql(conexion);
+    else options.UseSqlServer(conexion);
+});
 
 // Dependency Injection
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();

@@ -17,6 +17,10 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.empresas
             _context = context;
         }
 
+        // Escapa los comodines de LIKE para que lo que escribe el usuario se busque literalmente
+        private static string EscaparLike(string texto) =>
+            texto.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
         // Convierte "20606" -> "202606" para poder comparar bien
         private static string NormalizarPeriodo(string p) =>
             p.Length == 5 && p.StartsWith("20") ? "202" + p.Substring(2) : p;
@@ -138,7 +142,21 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.empresas
             string anioActual = DateTime.Now.Year.ToString();
 
             // Filtramos por razón social Y estrictamente por el año actual
-            var deudas = await _context.Deudas
+            // PostgreSQL: prefijo sin distinguir mayusculas sobre lower(razonsocial), que tiene su indice.
+            // SQL Server queda con la consulta original (su ordenamiento ya no distingue mayusculas).
+            var patron = EscaparLike(filtro.ToLowerInvariant()) + "%";
+
+            var deudas = _context.Database.IsNpgsql()
+                ? await _context.Deudas
+                    .AsNoTracking()
+                    .Where(x => x.RazonSocial != null &&
+                                EF.Functions.Like(x.RazonSocial.ToLower(), patron, "\\") &&
+                                x.Periodo != null &&
+                                x.Periodo.StartsWith(anioActual))
+                    .OrderByDescending(x => x.Periodo)
+                    .Take(50)
+                    .ToListAsync()
+                : await _context.Deudas
                 .AsNoTracking()
                 .Where(x => x.RazonSocial != null &&
                             x.RazonSocial.StartsWith(filtro) &&
@@ -148,7 +166,17 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.empresas
                 .Take(50)
                 .ToListAsync();
 
-            var lineas = await _context.LineaCreditos
+            var lineas = _context.Database.IsNpgsql()
+                ? await _context.LineaCreditos
+                    .AsNoTracking()
+                    .Where(x => x.RazonSocial != null &&
+                                EF.Functions.Like(x.RazonSocial.ToLower(), patron, "\\") &&
+                                x.Periodo != null &&
+                                x.Periodo.StartsWith(anioActual))
+                    .OrderByDescending(x => x.Periodo)
+                    .Take(50)
+                    .ToListAsync()
+                : await _context.LineaCreditos
                 .AsNoTracking()
                 .Where(x => x.RazonSocial != null &&
                             x.RazonSocial.StartsWith(filtro) &&

@@ -65,5 +65,52 @@ public class AppDbContext : DbContext
                 .HasDefaultValueSql("SYSDATETIME()")
                 .ValueGeneratedOnAdd();
         });
+
+        if (Database.IsNpgsql())
+            ConfigurarPostgres(modelBuilder);
+    }
+
+    // Ajustes que solo aplican con PostgreSQL. Con SQL Server el modelo queda exactamente como estaba.
+    private static void ConfigurarPostgres(ModelBuilder modelBuilder)
+    {
+        // SQL Server compara sin distinguir mayusculas (Modern_Spanish_CI_AS); citext reproduce eso en PostgreSQL.
+        modelBuilder.Entity<Usuarios>(e =>
+        {
+            e.Property(x => x.Nombres).HasColumnType("citext");
+            e.Property(x => x.ApePat).HasColumnType("citext");
+            e.Property(x => x.ApeMat).HasColumnType("citext");
+            e.Property(x => x.UsuarioLogin).HasColumnType("citext");
+            e.Property(x => x.Correo).HasColumnType("citext");
+        });
+        modelBuilder.Entity<Rol>().Property(x => x.NomRol).HasColumnType("citext");
+        modelBuilder.Entity<AuditoriaRegistro>(e =>
+        {
+            e.Property(x => x.Usuario).HasColumnType("citext");
+            e.Property(x => x.Accion).HasColumnType("citext");
+        });
+        modelBuilder.Entity<Deuda>().Property(x => x.Documento).HasColumnType("citext");
+        modelBuilder.Entity<Calificacion>().Property(x => x.Documento).HasColumnType("citext");
+        modelBuilder.Entity<LineaCredito>().Property(x => x.Documento).HasColumnType("citext");
+        modelBuilder.Entity<Movil>().Property(x => x.Documento).HasColumnType("citext");
+        modelBuilder.Entity<Sueldo>().Property(x => x.Documento).HasColumnType("citext");
+
+        // char(n) de SQL Server -> varchar(n): comparar char(n) con parametros de texto impide usar el indice.
+        modelBuilder.Entity<Sueldo>().Property(x => x.Periodo).HasColumnType("varchar(6)");
+
+        // Fecha sin zona horaria, como datetime2 / SYSDATETIME() en SQL Server.
+        modelBuilder.Entity<HistorialDescarga>().Property(x => x.FechaCreo)
+            .HasColumnType("timestamp")
+            .HasDefaultValueSql("now()");
+
+        // PostgreSQL pliega a minusculas lo que no va entre comillas: todo va en minusculas para que tambien
+        // funcione el SQL escrito a mano (por ejemplo INSERT INTO rrcc.tokensaldo ...).
+        foreach (var entidad in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entidad.GetTableName() is { } tabla) entidad.SetTableName(tabla.ToLowerInvariant());
+            if (entidad.GetSchema() is { } esquema) entidad.SetSchema(esquema.ToLowerInvariant());
+            foreach (var propiedad in entidad.GetProperties())
+                if (propiedad.GetColumnName() is { } columna)
+                    propiedad.SetColumnName(columna.ToLowerInvariant());
+        }
     }
 }

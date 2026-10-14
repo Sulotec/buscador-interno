@@ -6,7 +6,12 @@ namespace internal_search_backend.Infraestructure.Repositories.Usurio
     {
         // Upsert de la fecha de revocación; se puede llamar dentro de una transacción abierta
         public static Task<int> RevocarAsync(AppDbContext context, int codUsuario, DateTime ahoraUtc) =>
-            context.Database.ExecuteSqlInterpolatedAsync($@"
+            context.Database.IsNpgsql()
+                ? context.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT INTO rrcc.sesionesrevocadas (cod_usuario, fecha_revocacion)
+                    VALUES ({codUsuario}, {ahoraUtc})
+                    ON CONFLICT (cod_usuario) DO UPDATE SET fecha_revocacion = EXCLUDED.fecha_revocacion")
+                : context.Database.ExecuteSqlInterpolatedAsync($@"
                 MERGE RRCC.SesionesRevocadas AS t
                 USING (SELECT {codUsuario} AS COD_USUARIO) AS s ON t.COD_USUARIO = s.COD_USUARIO
                 WHEN MATCHED THEN UPDATE SET FECHA_REVOCACION = {ahoraUtc}

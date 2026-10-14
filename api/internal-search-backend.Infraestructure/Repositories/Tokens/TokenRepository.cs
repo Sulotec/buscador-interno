@@ -45,12 +45,22 @@ namespace internal_search_backend.Infraestructure.Repositories.Tokens
 
             if (delta > 0)
             {
-                await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                if (_context.Database.IsNpgsql())
+                {
+                    await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                        INSERT INTO rrcc.tokensaldo (cod_usuario, saldo, fecha_actu)
+                        VALUES ({codUsuario}, 0, now() AT TIME ZONE 'utc')
+                        ON CONFLICT (cod_usuario) DO NOTHING");
+                }
+                else
+                {
+                    await _context.Database.ExecuteSqlInterpolatedAsync($@"
                     INSERT INTO RRCC.TokenSaldo (COD_USUARIO, SALDO, FECHA_ACTU)
                     SELECT {codUsuario}, 0, SYSUTCDATETIME()
                     WHERE NOT EXISTS (
                         SELECT 1 FROM RRCC.TokenSaldo WITH (UPDLOCK, HOLDLOCK)
                         WHERE COD_USUARIO = {codUsuario})");
+                }
             }
 
             var ahora = DateTime.UtcNow;
