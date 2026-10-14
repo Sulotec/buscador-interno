@@ -1,6 +1,7 @@
 using internal_search.Domain.Interfaces.Notificaciones;
-using System.Net;
-using System.Net.Mail;
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 namespace internal_search_backend.Infraestructure.Notificaciones
 {
@@ -13,22 +14,24 @@ namespace internal_search_backend.Infraestructure.Notificaciones
             _options = options;
         }
 
+        // MailKit y no System.Net.Mail.SmtpClient: este no sabe autenticarse con AUTH PLAIN, el unico metodo que ofrece OCI Email Delivery.
         public async Task EnviarAsync(string destinatario, string asunto, string cuerpoHtml)
         {
-            using var client = new SmtpClient(_options.Host, _options.Port)
-            {
-                EnableSsl = _options.EnableSsl,
-                Credentials = string.IsNullOrEmpty(_options.User)
-                    ? null
-                    : new NetworkCredential(_options.User, _options.Password)
-            };
+            var mensaje = new MimeMessage();
+            mensaje.From.Add(MailboxAddress.Parse(_options.From));
+            mensaje.To.Add(MailboxAddress.Parse(destinatario));
+            mensaje.Subject = asunto;
+            mensaje.Body = new BodyBuilder { HtmlBody = cuerpoHtml }.ToMessageBody();
 
-            using var mensaje = new MailMessage(_options.From, destinatario, asunto, cuerpoHtml)
-            {
-                IsBodyHtml = true
-            };
+            using var client = new SmtpClient();
+            await client.ConnectAsync(_options.Host, _options.Port,
+                _options.EnableSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None);
 
-            await client.SendMailAsync(mensaje);
+            if (!string.IsNullOrEmpty(_options.User))
+                await client.AuthenticateAsync(_options.User, _options.Password);
+
+            await client.SendAsync(mensaje);
+            await client.DisconnectAsync(true);
         }
     }
 }
