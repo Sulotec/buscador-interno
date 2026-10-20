@@ -3,7 +3,7 @@
 import clsx from 'clsx';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Building2, ClipboardList, Coins, FileSpreadsheet, Home, LogOut, Menu, ShieldAlert, UserSearch, Users, X,
 } from 'lucide-react';
@@ -90,14 +90,14 @@ function Saldo() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const { usuario, esAdmin, error, salir } = useSesion();
-  const [abierto, setAbierto] = useState(false);
+  const [rutaAbierta, setRutaAbierta] = useState<string | null>(null);
   const ruta = usePathname();
-  useEffect(() => setAbierto(false), [ruta]);
+  const abierto = rutaAbierta === ruta;
 
   const lateral = (
     <div className="flex h-full flex-col gap-8 px-3 py-5">
       <div className="px-2"><Marca /></div>
-      <Navegacion alNavegar={() => setAbierto(false)} />
+      <Navegacion alNavegar={() => setRutaAbierta(null)} />
       <p className="mt-auto px-3 text-[11px] leading-relaxed text-azul-50">
         Uso interno. Cada consulta queda registrada en la auditoría.
       </p>
@@ -110,16 +110,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {/* Cajon en celular y tablet */}
       <div className={clsx('fixed inset-0 z-40 lg:hidden', abierto ? 'visible' : 'invisible')} aria-hidden={!abierto}>
-        <div className={clsx('absolute inset-0 bg-azul-noche/60 transition-opacity', abierto ? 'opacity-100' : 'opacity-0')} onClick={() => setAbierto(false)} />
+        <div className={clsx('absolute inset-0 bg-azul-noche/60 transition-opacity', abierto ? 'opacity-100' : 'opacity-0')} onClick={() => setRutaAbierta(null)} />
         <aside className={clsx('absolute inset-y-0 left-0 w-72 max-w-[85%] overflow-y-auto bg-azul-noche transition-transform', abierto ? 'translate-x-0' : '-translate-x-full')}>
-          <button onClick={() => setAbierto(false)} className="absolute right-3 top-4 rounded-md p-1.5 text-azul-25 hover:bg-white/10" aria-label="Cerrar menú"><X className="size-5" /></button>
+          <button onClick={() => setRutaAbierta(null)} className="absolute right-3 top-4 rounded-md p-1.5 text-azul-25 hover:bg-white/10" aria-label="Cerrar menú"><X className="size-5" /></button>
           {lateral}
         </aside>
       </div>
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-borde bg-fondo/90 px-4 backdrop-blur sm:px-6">
-          <button onClick={() => setAbierto(true)} className="rounded-md p-2 text-azul hover:bg-azul-10 lg:hidden" aria-label="Abrir menú"><Menu className="size-5" /></button>
+          <button onClick={() => setRutaAbierta(ruta)} className="rounded-md p-2 text-azul hover:bg-azul-10 lg:hidden" aria-label="Abrir menú"><Menu className="size-5" /></button>
           <div className="lg:hidden"><Link href="/inicio" className="font-bold text-azul">Buscador</Link></div>
           <div className="ml-auto flex items-center gap-3">
             <Saldo />

@@ -12,11 +12,7 @@ export function Campo({ etiqueta, ayuda, error, className, id, ...resto }:
         id={idCampo}
         {...resto}
         aria-invalid={Boolean(error) || undefined}
-        className={clsx(
-          'h-10 w-full rounded-lg border bg-white px-3 text-sm text-texto placeholder:text-gris/60 transition-colors',
-          'focus:border-azul focus:outline-none focus:ring-2 focus:ring-azul/15',
-          error ? 'border-peligro' : 'border-borde',
-        )}
+        className={clsx('input', error && 'input--error')}
       />
       {error ? <span className="mt-1 block text-xs text-peligro">{error}</span>
         : ayuda && <span className="mt-1 block text-xs text-gris">{ayuda}</span>}

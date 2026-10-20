@@ -1,10 +1,11 @@
 'use client';
 // Presentacion de resultados: resumen + una tarjeta por seccion (deudas, lineas, calificaciones, laboral, telefonos).
-import type { ReactNode } from 'react';
-import { Banknote, Briefcase, CreditCard, Gauge, Phone } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Banknote, Briefcase, CreditCard, Gauge, LucideIcon, Phone } from 'lucide-react';
 import { Chip, Tabla, Tarjeta, type Columna } from '@/components/ui';
 import { fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import type { Calificacion, Deuda, LineaCredito, Movil, Sueldo } from './tipos';
+import clsx from 'clsx';
 
 export function tonoCalificacion(c: string | null | undefined): 'verde' | 'ambar' | 'peligro' | 'neutro' {
   const v = String(c ?? '').toUpperCase();
@@ -23,50 +24,74 @@ export function Seccion({ titulo, icono, cantidad, children }: { titulo: string;
   );
 }
 
+function PeriodoCelda({ periodo }: { periodo: string | null }) {
+  return <span className="inline-flex rounded-md bg-azul-10 px-2 py-1 text-xs font-semibold text-azul">{fPeriodo(periodo ?? '')}</span>;
+}
+
+export function Operadora({ nombre }: { nombre: string | null }) {
+  const normalizado = nombre?.toLowerCase() ?? '';
+  const color = /claro/.test(normalizado)
+    ? 'bg-[#FCE8E8] text-[#B4232E] ring-[#F5C5C8]'
+    : /movistar|telef[oó]nica/.test(normalizado)
+      ? 'bg-[#E8F0FE] text-[#174EA6] ring-[#C6D7F5]'
+      : /entel/.test(normalizado)
+        ? 'bg-[#E5F6FC] text-[#08749B] ring-[#B7E6F4]'
+        : /bitel|viettel/.test(normalizado)
+          ? 'bg-[#EAF5E8] text-[#34713A] ring-[#C9E3C5]'
+          : 'bg-[#F1F3F6] text-[#525B6A] ring-[#DDE2E8]';
+
+  return <span className={clsx('inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset', color)}>{fTexto(nombre)}</span>;
+}
+
 const colDeudas: Columna<Deuda>[] = [
-  { titulo: 'Periodo', celda: (d) => fPeriodo(d.periodo) },
-  { titulo: 'Entidad', celda: (d) => fTexto(d.entidad), className: 'max-w-64' },
-  { titulo: 'Tipo de deuda', celda: (d) => fTexto(d.tipoDeuda) },
-  { titulo: 'Días', celda: (d) => fNumero(d.dias), derecha: true },
+  { titulo: 'Periodo', celda: (d) => <PeriodoCelda periodo={d.periodo} /> },
+  { titulo: 'Entidad', celda: (d) => <span className="font-semibold text-texto">{fTexto(d.entidad)}</span>, className: 'max-w-64' },
+  { titulo: 'Tipo de deuda', celda: (d) => <span className="text-gris">{fTexto(d.tipoDeuda)}</span> },
+  { titulo: 'Días', celda: (d) => <span className="font-medium">{fNumero(d.dias)}</span>, derecha: true },
   { titulo: 'Calificación', celda: (d) => d.calificacion ? <Chip tono={tonoCalificacion(d.calificacion)}>{d.calificacion}</Chip> : '—' },
-  { titulo: 'Saldo', celda: (d) => <span className="font-semibold">{fMoneda(d.saldo)}</span>, derecha: true },
+  { titulo: 'Saldo', celda: (d) => <span className="font-bold text-azul-oscuro">{fMoneda(d.saldo)}</span>, derecha: true },
 ];
 const colLineas: Columna<LineaCredito>[] = [
-  { titulo: 'Periodo', celda: (l) => fPeriodo(l.periodo) },
-  { titulo: 'Entidad', celda: (l) => fTexto(l.entidad) },
-  { titulo: 'Tipo', celda: (l) => fTexto(l.tipo) },
-  { titulo: 'Línea', celda: (l) => fMoneda(l.lineaCreditoMonto), derecha: true },
-  { titulo: 'Utilizada', celda: (l) => fMoneda(l.lineaUtilizada), derecha: true },
-  { titulo: 'Disponible', celda: (l) => fMoneda(l.lineaNoUtilizada), derecha: true },
+  { titulo: 'Periodo', celda: (l) => <PeriodoCelda periodo={l.periodo} /> },
+  { titulo: 'Entidad', celda: (l) => <span className="font-semibold">{fTexto(l.entidad)}</span> },
+  { titulo: 'Tipo', celda: (l) => <span className="text-gris">{fTexto(l.tipo)}</span> },
+  { titulo: 'Línea', celda: (l) => <span className="font-medium">{fMoneda(l.lineaCreditoMonto)}</span>, derecha: true },
+  { titulo: 'Utilizada', celda: (l) => {
+    const total = l.lineaCreditoMonto ?? 0;
+    const usada = l.lineaUtilizada ?? 0;
+    const porcentaje = total > 0 ? Math.min(100, Math.max(0, (usada / total) * 100)) : 0;
+    return <span className="inline-block min-w-28 text-right"><span className="font-semibold">{fMoneda(l.lineaUtilizada)}</span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-azul-10"><span className="block h-full rounded-full bg-azul-claro" style={{ width: `${porcentaje}%` }} /></span></span>;
+  }, derecha: true },
+  { titulo: 'Disponible', celda: (l) => <span className="font-semibold text-verde">{fMoneda(l.lineaNoUtilizada)}</span>, derecha: true },
 ];
 const pct = (n: number | null) => (n == null ? '—' : `${n}%`);
 const colCalificaciones: Columna<Calificacion>[] = [
-  { titulo: 'Periodo', celda: (c) => fPeriodo(c.periodo) },
-  { titulo: 'Normal', celda: (c) => pct(c.nor), derecha: true },
-  { titulo: 'CPP', celda: (c) => pct(c.cpp), derecha: true },
-  { titulo: 'Deficiente', celda: (c) => pct(c.def), derecha: true },
-  { titulo: 'Dudoso', celda: (c) => pct(c.dud), derecha: true },
-  { titulo: 'Pérdida', celda: (c) => pct(c.per), derecha: true },
+  { titulo: 'Periodo', celda: (c) => <PeriodoCelda periodo={c.periodo} /> },
+  { titulo: 'Normal', celda: (c) => <Chip tono="verde">{pct(c.nor)}</Chip>, derecha: true },
+  { titulo: 'CPP', celda: (c) => <Chip tono="ambar">{pct(c.cpp)}</Chip>, derecha: true },
+  { titulo: 'Deficiente', celda: (c) => <Chip tono="peligro">{pct(c.def)}</Chip>, derecha: true },
+  { titulo: 'Dudoso', celda: (c) => <Chip tono="peligro">{pct(c.dud)}</Chip>, derecha: true },
+  { titulo: 'Pérdida', celda: (c) => <Chip tono="peligro">{pct(c.per)}</Chip>, derecha: true },
   { titulo: 'Entidades', celda: (c) => fTexto(c.reportan), derecha: true },
 ];
 const colSueldos: Columna<Sueldo>[] = [
-  { titulo: 'Periodo', celda: (s) => fPeriodo(s.periodo) },
-  { titulo: 'Empresa', celda: (s) => <span>{fTexto(s.empresa)}<span className="block text-xs text-gris">{s.ruc ? `RUC ${s.ruc}` : ''}</span></span> },
-  { titulo: 'Sueldo', celda: (s) => fMoneda(s.montoSueldo), derecha: true },
+  { titulo: 'Periodo', celda: (s) => <PeriodoCelda periodo={s.periodo} /> },
+  { titulo: 'Empresa', celda: (s) => <span className="font-semibold">{fTexto(s.empresa)}<span className="mt-0.5 block text-xs font-normal text-gris">{s.ruc ? `RUC ${s.ruc}` : ''}</span></span> },
+  { titulo: 'Sueldo', celda: (s) => <span className="font-bold text-azul-oscuro">{fMoneda(s.montoSueldo)}</span>, derecha: true },
   { titulo: 'Gratif./bono', celda: (s) => fMoneda(s.gratifBono), derecha: true },
   { titulo: 'Ingreso anual est.', celda: (s) => fMoneda(s.ingresoEstimadoAnual), derecha: true },
   { titulo: 'Rango', celda: (s) => fTexto(s.rangoSueldo) },
   { titulo: 'Nivel', celda: (s) => fTexto(s.nivelIngreso) },
 ];
 export const colMoviles: Columna<Movil>[] = [
-  { titulo: 'Teléfono', celda: (m) => <span className="font-semibold">{fTexto(m.telefono)}</span> },
-  { titulo: 'Titular', celda: (m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat) },
+  { titulo: 'Teléfono', celda: (m) => <span className="font-bold text-azul">{fTexto(m.telefono)}</span> },
+  { titulo: 'Titular', celda: (m) => <span className="font-medium">{nombreCompleto(m.prenombres, m.apePat, m.apeMat)}</span> },
   { titulo: 'Documento', celda: (m) => fTexto(m.documento) },
-  { titulo: 'Operadora', celda: (m) => fTexto(m.empresaOperadora) },
+  { titulo: 'Operadora', celda: (m) => <Operadora nombre={m.empresaOperadora} /> },
   { titulo: 'Plan', celda: (m) => fTexto(m.planMovil) },
   { titulo: 'Modalidad', celda: (m) => fTexto(m.modalidad) },
   { titulo: 'Alta', celda: (m) => fFecha(m.fechaAlta) },
-  { titulo: 'Periodo', celda: (m) => fPeriodo(m.periodo) },
+  { titulo: 'Periodo', celda: (m) => <PeriodoCelda periodo={m.periodo} /> },
 ];
 
 // Para tablas sin tipo fijo (la API de empresas devuelve telefonos y sueldos como objetos libres)
@@ -88,6 +113,120 @@ export interface Secciones {
   sueldos: Sueldo[] | Record<string, unknown>[]; moviles: Movil[] | Record<string, unknown>[];
 }
 
+const PALETAS = {
+  violeta:  { acento: '#7F77DD', marco: 'bg-[#CECBF6]', fondo: 'bg-[#EEEDFE]', etiqueta: 'text-[#534AB7]', valor: 'text-[#26215C]', icono: 'bg-[#CECBF6]/60' },
+  turquesa: { acento: '#1D9E75', marco: 'bg-[#9FE1CB]', fondo: 'bg-[#E1F5EE]', etiqueta: 'text-[#0F6E56]', valor: 'text-[#04342C]', icono: 'bg-[#9FE1CB]/60' },
+  ambar:    { acento: '#EF9F27', marco: 'bg-[#FAC775]', fondo: 'bg-[#FAEEDA]', etiqueta: 'text-[#854F0B]', valor: 'text-[#412402]', icono: 'bg-[#FAC775]/60' },
+  verde:    { acento: '#639922', marco: 'bg-[#C0DD97]', fondo: 'bg-[#EAF3DE]', etiqueta: 'text-[#3B6D11]', valor: 'text-[#173404]', icono: 'bg-[#C0DD97]/60' },
+  coral:    { acento: '#D85A30', marco: 'bg-[#F5C4B3]', fondo: 'bg-[#FAECE7]', etiqueta: 'text-[#993C1D]', valor: 'text-[#4A1B0C]', icono: 'bg-[#F5C4B3]/60' },
+  rojo:     { acento: '#E24B4A', marco: 'bg-[#F7C1C1]', fondo: 'bg-[#FCEBEB]', etiqueta: 'text-[#A32D2D]', valor: 'text-[#501313]', icono: 'bg-[#F7C1C1]/60' },
+  gris:     { acento: '#888780', marco: 'bg-[#D3D1C7]', fondo: 'bg-[#F1EFE8]', etiqueta: 'text-[#5F5E5A]', valor: 'text-[#2C2C2A]', icono: 'bg-[#D3D1C7]/60' },
+} as const;
+
+type Paleta = keyof typeof PALETAS;
+
+// Cuenta desde 0 hasta el valor (respeta "reducir movimiento")
+function useContador(objetivo: number | null, duracion = 900) {
+  const [valor, setValor] = useState(0);
+  useEffect(() => {
+    if (objetivo == null) return;
+    // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setValor(objetivo); return; }
+    let inicio: number | null = null;
+    let id = 0;
+    const paso = (t: number) => {
+      if (inicio === null) inicio = t;
+      const p = Math.min((t - inicio) / duracion, 1);
+      setValor(objetivo * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) id = requestAnimationFrame(paso);
+    };
+    id = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(id);
+  }, [objetivo, duracion]);
+  return valor;
+}
+
+type ItemResumen = {
+  titulo: string;
+  nota: string;
+  Icono: LucideIcon;
+  paleta: Paleta;
+  numero?: number | null;
+  formato?: (n: number) => string;
+  texto?: string;
+};
+
+function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number }) {
+  const { titulo, nota, Icono, paleta, numero, formato, texto } = item;
+  const p = PALETAS[paleta];
+  const contado = useContador(numero ?? null);
+  const valor = texto ?? (numero == null ? '—' : formato ? formato(contado) : String(Math.round(contado)));
+
+  const rebote = 'ease-[cubic-bezier(0.34,1.56,0.64,1)]';
+
+  return (
+    <article
+      style={{ animationDelay: `${indice * 80}ms`, '--acento': p.acento } as React.CSSProperties}
+      className={clsx(
+        'aparecer group relative isolate cursor-default overflow-hidden rounded-2xl p-4 [animation-fill-mode:backwards] sm:p-5',
+        'transition-all duration-300 ease-out',
+        'hover:-translate-y-1.5 hover:shadow-[0_16px_30px_-16px_var(--acento)]',
+        'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        p.marco,
+      )}
+    >
+      {/* Luz que recorre todo el borde */}
+      <span
+        aria-hidden
+        className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      >
+        <span className="aspect-square w-[200%] shrink-0 animate-[spin_2.5s_linear_infinite] bg-[conic-gradient(transparent_0deg,transparent_220deg,var(--acento)_300deg,#fff_350deg,transparent_360deg)] motion-reduce:animate-none" />
+      </span>
+
+      {/* Capa interior: fondo de la tarjeta (deja ver solo 1.5px de borde) */}
+      <span aria-hidden className={clsx('absolute inset-[1.5px] overflow-hidden rounded-[calc(1rem-1.5px)]', p.fondo)}>
+        {/* Círculo de color que crece desde la esquina */}
+        <span className="absolute -right-8 -top-8 size-28 scale-50 rounded-full bg-[var(--acento)] opacity-0 transition-all duration-500 ease-out group-hover:scale-100 group-hover:opacity-15" />
+
+        {/* Brillo que cruza la tarjeta */}
+        <span className="absolute inset-y-0 left-0 w-1/3 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/60 to-transparent transition-none group-hover:translate-x-[400%] group-hover:transition-transform group-hover:duration-700 group-hover:ease-out" />
+
+        {/* Barra inferior que crece */}
+        <span className="absolute bottom-0 left-0 h-[3px] w-0 rounded-r-full bg-[var(--acento)] transition-all duration-500 ease-out group-hover:w-full" />
+      </span>
+
+      {/* Contenido */}
+      <div className="relative">
+        <p className={clsx('flex items-center gap-2 text-xs font-semibold', p.etiqueta)}>
+          <span
+            className={clsx(
+              'grid size-7 place-items-center rounded-lg transition-all duration-500',
+              rebote,
+              'group-hover:-rotate-12 group-hover:scale-125 group-hover:bg-[var(--acento)] group-hover:text-white',
+              p.icono,
+            )}
+          >
+            <Icono className="size-4" />
+          </span>
+          <span className="transition-transform duration-300 group-hover:translate-x-0.5">{titulo}</span>
+        </p>
+
+        <p
+          className={clsx(
+            'numeros mt-3 origin-left truncate text-xl font-bold tracking-tight transition-transform duration-500 sm:text-2xl',
+            rebote,
+            'group-hover:scale-105',
+            p.valor,
+          )}
+        >
+          {valor}
+        </p>
+
+        <p className={clsx('mt-0.5 text-xs transition-opacity duration-300 group-hover:opacity-80', p.etiqueta)}>{nota}</p>
+      </div>
+    </article>
+  );
+}
+
 export function Resumen({ s }: { s: Secciones }) {
   const ultimoPeriodo = s.deudas.reduce((m, d) => (d.periodo > m ? d.periodo : m), '');
   const deudasRecientes = s.deudas.filter((d) => d.periodo === ultimoPeriodo);
@@ -99,20 +238,20 @@ export function Resumen({ s }: { s: Secciones }) {
     return !p || orden.indexOf(tonoCalificacion(d.calificacion) as typeof orden[number]) > orden.indexOf(tonoCalificacion(p) as typeof orden[number]) ? d.calificacion : p;
   }, null);
   const sueldo = (s.sueldos as Sueldo[]).find((x) => typeof x?.montoSueldo === 'number')?.montoSueldo ?? null;
-  const items = [
-    { titulo: 'Deuda total', valor: ultimoPeriodo ? fMoneda(total) : '—', nota: ultimoPeriodo ? fPeriodo(ultimoPeriodo) : 'Sin deudas reportadas', icono: <Banknote className="size-4" /> },
-    { titulo: 'Entidades', valor: fNumero(entidades), nota: 'en el último periodo', icono: <CreditCard className="size-4" /> },
-    { titulo: 'Peor calificación', valor: peor ?? '—', nota: 'en el historial', icono: <Gauge className="size-4" />, tono: tonoCalificacion(peor) },
-    { titulo: 'Sueldo reportado', valor: fMoneda(sueldo), nota: 'último registro', icono: <Briefcase className="size-4" /> },
+
+  const paletaPeor: Paleta = { verde: 'verde', ambar: 'coral', peligro: 'rojo', neutro: 'gris' }[tonoCalificacion(peor)] as Paleta;
+
+  const items: ItemResumen[] = [
+    { titulo: 'Deuda total', nota: ultimoPeriodo ? fPeriodo(ultimoPeriodo) : 'Sin deudas reportadas', numero: ultimoPeriodo ? total : null, formato: (n) => fMoneda(n), Icono: Banknote, paleta: 'violeta' },
+    { titulo: 'Entidades', nota: 'En el último periodo', numero: entidades, formato: (n) => fNumero(Math.round(n)), Icono: CreditCard, paleta: 'turquesa' },
+    { titulo: 'Peor calificación', nota: 'En el historial', texto: peor ?? '—', Icono: Gauge, paleta: paletaPeor },
+    { titulo: 'Sueldo reportado', nota: 'Último registro', numero: sueldo, formato: (n) => fMoneda(n), Icono: Briefcase, paleta: 'ambar' },
   ];
+
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {items.map((i) => (
-        <div key={i.titulo} className="aparecer rounded-xl border border-borde bg-white p-4 shadow-tarjeta">
-          <p className="flex items-center gap-2 text-xs font-semibold text-gris"><span className="text-azul">{i.icono}</span>{i.titulo}</p>
-          <p className={`numeros mt-2 text-xl font-semibold ${i.tono === 'peligro' ? 'text-peligro' : i.tono === 'ambar' ? 'text-ambar' : 'text-texto'}`}>{i.valor}</p>
-          <p className="mt-0.5 text-xs text-gris">{i.nota}</p>
-        </div>
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {items.map((item, idx) => (
+        <TarjetaResumen key={item.titulo} item={item} indice={idx} />
       ))}
     </div>
   );

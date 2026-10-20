@@ -8,10 +8,8 @@ import { fFecha } from '@/lib/formato';
 import { servicioAdmin, type FiltroAuditoria } from './servicio';
 import type { Pagina, RegistroAuditoria } from './tipos';
 
-const TAMANO = 25;
-
 export function AdminAuditoria() {
-  const [filtro, setFiltro] = useState<FiltroAuditoria>({ pagina: 1, tamano: TAMANO });
+  const [filtro, setFiltro] = useState<FiltroAuditoria>({ pagina: 1, tamano: 25 });
   const [borrador, setBorrador] = useState({ desde: '', hasta: '', usuario: '', accion: '' });
   const [datos, setDatos] = useState<Pagina<RegistroAuditoria> | null>(null);
   const [error, setError] = useState('');
@@ -22,7 +20,7 @@ export function AdminAuditoria() {
   }, [filtro]);
   useEffect(cargar, [cargar]);
 
-  function aplicar(e: FormEvent) { e.preventDefault(); setFiltro({ ...borrador, pagina: 1, tamano: TAMANO }); }
+  function aplicar(e: FormEvent) { e.preventDefault(); setFiltro({ ...borrador, pagina: 1, tamano: filtro.tamano }); }
 
   const columnas: Columna<RegistroAuditoria>[] = [
     { titulo: 'Fecha', celda: (r) => fFecha(r.fecha, true) },
@@ -49,8 +47,9 @@ export function AdminAuditoria() {
       {error && <div className="mb-4"><Aviso tono="error">{error}</Aviso></div>}
       <Tarjeta sinRelleno>
         {datos ? <>
-          <Tabla columnas={columnas} filas={datos.items} clave={(r) => r.codAuditoria} vacio="No hay registros con esos filtros." />
-          <Paginacion pagina={filtro.pagina} tamano={TAMANO} total={datos.total} alCambiar={(p) => setFiltro({ ...filtro, pagina: p })} />
+          <Tabla columnas={columnas} filas={datos.items} clave={(r) => r.codAuditoria} vacio="No hay registros con esos filtros." paginacion={false} />
+          <Paginacion pagina={filtro.pagina} tamano={filtro.tamano} total={datos.total} alCambiar={(p) => setFiltro({ ...filtro, pagina: p })}
+            opcionesTamano={[10, 25, 50, 100]} alCambiarTamano={(tamano) => setFiltro({ ...filtro, pagina: 1, tamano })} />
         </> : <p className="px-5 py-8 text-center text-sm text-gris">Cargando…</p>}
       </Tarjeta>
     </>

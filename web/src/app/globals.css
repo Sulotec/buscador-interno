@@ -24,12 +24,209 @@
   --shadow-tarjeta: 0 1px 2px rgba(27, 69, 137, .05), 0 8px 24px rgba(27, 69, 137, .07);
 }
 
-html { background: var(--color-fondo); color: var(--color-texto); }
-body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-.numeros { font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid var(--color-azul-claro); outline-offset: 2px; }
+/* DISEÑO SISTEMA */
+.input {
+  height: 2.5rem;
+  width: 100%;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-texto);
+  background: #fff;
+  border: 2px solid var(--color-borde);
+  border-radius: 0.5rem;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 200ms ease-out;
+}
 
-@keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.aparecer { animation: aparecer .35s cubic-bezier(.2, .7, .2, 1) both; }
-@keyframes barrido { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-@media (prefers-reduced-motion: reduce) { .aparecer { animation: none; } }
+.input--busqueda {
+  padding-left: 2.75rem;
+}
+
+.selector-documento__opcion {
+  color: var(--color-texto);
+  background-color: #fff;
+  font-weight: 500;
+}
+
+.selector-documento__opcion:checked {
+  color: var(--color-azul);
+  background-color: var(--color-azul-10);
+  font-weight: 700;
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--color-gris) 60%, transparent);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--color-azul);
+}
+
+/* Estado de error */
+.input--error,
+.input--error:focus {
+  border-color: var(--color-peligro);
+}
+
+.input:focus,
+select.focus-control:focus,
+textarea.focus-control:focus {
+  border-color: var(--color-azul);
+  outline: 2px solid color-mix(in srgb, var(--color-azul) 20%, transparent);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.input--error:focus {
+  border-color: var(--color-peligro);
+  outline-color: color-mix(in srgb, var(--color-peligro) 20%, transparent);
+}
+
+/*  */
+/* ---------- Respaldo (todos los navegadores) ---------- */
+.selector-documento__opcion {
+  background: #fff;
+  color: var(--color-texto, #0f172a);
+}
+
+.selector-documento__opcion:checked {
+  background: var(--color-azul, #1d4ed8);
+  color: #fff;
+}
+
+/* ---------- Diseño completo (Chrome / Edge) ---------- */
+@supports (appearance: base-select) {
+  /* Activa el modo personalizable en el select y su lista */
+  .selector-documento__select,
+  .selector-documento__select::picker(select) {
+    appearance: base-select;
+  }
+
+  /* Oculta la flecha nativa (ya usas ChevronDown) */
+  .selector-documento__select::picker-icon {
+    display: none;
+  }
+
+  /* Caja que contiene las opciones */
+  .selector-documento__select::picker(select) {
+    margin-top: 0.5rem;
+    padding: 0.375rem;
+    background: #fff;
+    border: 1px solid var(--color-borde, #e2e8f0);
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 32px -8px rgb(15 23 42 / 0.18);
+  }
+
+  /* Cada opción */
+  .selector-documento__opcion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-texto, #0f172a);
+    cursor: pointer;
+    transition: background-color 150ms ease-out, color 150ms ease-out;
+  }
+
+  .selector-documento__opcion + .selector-documento__opcion {
+    margin-top: 2px;
+  }
+
+  /* Hover y teclado */
+  .selector-documento__opcion:hover,
+  .selector-documento__opcion:focus-visible {
+    background: color-mix(in srgb, var(--color-azul, #1d4ed8) 10%, #fff);
+    color: var(--color-azul, #1d4ed8);
+    outline: none;
+  }
+
+  /* Opción elegida */
+  .selector-documento__opcion:checked {
+    background: color-mix(in srgb, var(--color-azul, #1d4ed8) 12%, #fff);
+    color: var(--color-azul, #1d4ed8);
+    font-weight: 600;
+  }
+
+  /* Check azul a la derecha de la opción elegida */
+  .selector-documento__opcion::checkmark {
+    order: 1;
+    margin-left: auto;
+    color: var(--color-azul, #1d4ed8);
+    font-weight: 700;
+  }
+
+  /* Gira la flecha al abrir */
+  .selector-documento__select:open ~ svg {
+    rotate: 180deg;
+  }
+}
+
+html {
+  color: var(--color-texto);
+}
+
+@property --angulo-borde-tarjeta {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/*  */
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.numeros {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-azul-claro);
+  outline-offset: 2px;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.aparecer {
+  animation: aparecer .35s cubic-bezier(.2, .7, .2, 1) both;
+}
+
+@keyframes barrido {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aparecer {
+    animation: none;
+  }
+}
+
+
+/*ANIMACIONES CARDS */
+
+

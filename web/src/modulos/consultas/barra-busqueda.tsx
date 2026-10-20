@@ -5,23 +5,24 @@
 import { Search } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Boton } from '@/components/ui';
+import clsx from 'clsx';
 
 export function BarraBusqueda({
-  etiqueta, placeholder, valorInicial = '', validar, alBuscar, cargando, numerica = true, longitudMaxima, prefijo,
+  etiqueta, placeholder, valorInicial = '', validar, alBuscar, alCambiarValor, cargando, numerica = true, longitudMaxima, prefijo,
   mayusculas = false, sinEspacios = false,
 }: {
   etiqueta: string; placeholder: string; valorInicial?: string; numerica?: boolean; cargando?: boolean;
   longitudMaxima?: number; prefijo?: ReactNode; mayusculas?: boolean; sinEspacios?: boolean;
-  validar: (v: string) => string | null; alBuscar: (v: string) => void;
+  validar: (v: string) => string | null; alBuscar: (v: string) => void; alCambiarValor: (v: string) => void;
 }) {
-  const [valor, setValor] = useState(valorInicial);
+  const valor = valorInicial;
   const [error, setError] = useState('');
 
   function cambiar(texto: string) {
     let v = numerica ? texto.replace(/\D/g, '') : sinEspacios ? texto.replace(/\s/g, '') : texto;
     if (mayusculas) v = v.toUpperCase();
     if (longitudMaxima) v = v.slice(0, longitudMaxima);
-    setValor(v);
+    alCambiarValor(v);
     setError('');
   }
 
@@ -43,7 +44,10 @@ export function BarraBusqueda({
           value={valor} onChange={(e) => cambiar(e.target.value)} maxLength={longitudMaxima}
           inputMode={numerica ? 'numeric' : 'text'} placeholder={placeholder} aria-invalid={Boolean(error) || undefined}
           autoComplete="off"
-          className={`numeros h-11 w-full rounded-lg border bg-white pl-11 pr-3 text-base text-texto placeholder:text-gris/60 focus:border-azul focus:outline-none focus:ring-2 focus:ring-azul/15 ${error ? 'border-peligro' : 'border-borde'}`}
+          className={clsx(
+            'input input--busqueda numeros h-11 pl-11 text-base',
+            error && 'input--error',
+          )}
         />
         {error && <span className="mt-1 block text-xs text-peligro">{error}</span>}
       </label>

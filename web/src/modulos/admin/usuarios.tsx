@@ -9,13 +9,13 @@ import { FormularioCrear, FormularioRoles, FormularioTokens } from './formulario
 import { servicioAdmin } from './servicio';
 import type { Pagina, RolListado, UsuarioListado } from './tipos';
 
-const TAMANO = 15;
 type Dialogo = { tipo: 'crear' } | { tipo: 'roles' | 'tokens'; usuario: UsuarioListado } | null;
 
 export function AdminUsuarios() {
   const [texto, setTexto] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [tamano, setTamano] = useState(15);
   const [datos, setDatos] = useState<Pagina<UsuarioListado> | null>(null);
   const [roles, setRoles] = useState<RolListado[]>([]);
   const [dialogo, setDialogo] = useState<Dialogo>(null);
@@ -23,9 +23,9 @@ export function AdminUsuarios() {
   const [ocupado, setOcupado] = useState<number | null>(null);
 
   const cargar = useCallback(() => {
-    servicioAdmin.usuarios(busqueda, pagina, TAMANO).then(setDatos)
+    servicioAdmin.usuarios(busqueda, pagina, tamano).then(setDatos)
       .catch((e) => setAviso({ tono: 'error', texto: e instanceof ErrorApi ? e.message : 'No se pudo cargar la lista.' }));
-  }, [busqueda, pagina]);
+  }, [busqueda, pagina, tamano]);
   useEffect(cargar, [cargar]);
   useEffect(() => { servicioAdmin.roles().then(setRoles).catch(() => setRoles([])); }, []);
 
@@ -72,8 +72,9 @@ export function AdminUsuarios() {
             className="h-9 w-full rounded-lg border border-borde bg-white pl-9 pr-3 text-sm focus:border-azul focus:outline-none" />
         </form>}>
         {datos ? <>
-          <Tabla columnas={columnas} filas={datos.items} clave={(u) => u.id} vacio="No hay usuarios con esa búsqueda." />
-          <Paginacion pagina={pagina} tamano={TAMANO} total={datos.total} alCambiar={setPagina} />
+          <Tabla columnas={columnas} filas={datos.items} clave={(u) => u.id} vacio="No hay usuarios con esa búsqueda." paginacion={false} />
+          <Paginacion pagina={pagina} tamano={tamano} total={datos.total} alCambiar={setPagina}
+            opcionesTamano={[10, 15, 25, 50]} alCambiarTamano={(nuevoTamano) => { setTamano(nuevoTamano); setPagina(1); }} />
         </> : <p className="px-5 py-8 text-center text-sm text-gris">Cargando usuarios…</p>}
       </Tarjeta>
 
