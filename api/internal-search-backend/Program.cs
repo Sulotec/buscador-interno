@@ -182,6 +182,8 @@ builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IMenuRepository, MenuRepository>();
 
 builder.Services.AddScoped<IBuscadorRepository, IndividualRepository>();
+builder.Services.AddScoped<IFallecidosRepository, FallecidosRepository>();
+builder.Services.AddScoped<IFallecidosService, FallecidosService>();
 
 builder.Services.AddScoped<
     internal_search_backend.Business.Services.Buscador.personas.individual.IIndividualService,

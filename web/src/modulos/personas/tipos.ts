@@ -8,6 +8,11 @@ export interface ResultadoPersona {
 
 export interface ResultadoTelefono { telefono: string; documentosAsociados: number; registros: Movil[] }
 
+export interface ResultadoNombre {
+  documento: string; nombreCompleto: string;
+  deudas: Deuda[]; lineasCredito: LineaCredito[]; calificaciones: Calificacion[]; sueldos: Sueldo[]; moviles: Movil[];
+}
+
 export interface ReniecPersona {
   nuDni?: string; apePaterno?: string; apeMaterno?: string; apCasada?: string; preNombres?: string; sexo?: string;
   feNacimiento?: string; nuEdad?: string; estadoCivil?: string; gradoInstruccion?: string; estatura?: string;
@@ -20,4 +25,17 @@ export interface ReniecPersona {
 export interface ResultadoReniec {
   dni: string; encontrado: boolean;
   datos: { foto?: string; firma?: string; listaAni?: ReniecPersona[] } | null;
+}
+
+export interface FiltrosFallecidos {
+  dni?: string | null; apePat?: string | null; apeMat?: string | null; prenombres?: string | null;
+}
+
+export interface RegistroFallecido {
+  dni: string; apePat?: string | null; apeMat?: string | null; prenombres?: string | null;
+  deRestriccion?: string | null; fechaNacimiento?: string | null; fechaFallecimiento?: string | null;
+}
+
+export interface ResultadoFallecidos {
+  fallecidos: RegistroFallecido[]; hayMasResultados: boolean;
 }

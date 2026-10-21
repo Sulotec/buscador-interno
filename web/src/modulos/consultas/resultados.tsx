@@ -1,7 +1,7 @@
 'use client';
 // Presentacion de resultados: resumen + una tarjeta por seccion (deudas, lineas, calificaciones, laboral, telefonos).
 import { useEffect, useState, type ReactNode } from 'react';
-import { Banknote, Briefcase, CreditCard, Gauge, LucideIcon, Phone } from 'lucide-react';
+import { Banknote, Briefcase, Building2, CalendarDays, CreditCard, Gauge, IdCard, LucideIcon, Phone, PhoneCall, Smartphone, UserRound } from 'lucide-react';
 import { Chip, Tabla, Tarjeta, type Columna } from '@/components/ui';
 import { fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import type { Calificacion, Deuda, LineaCredito, Movil, Sueldo } from './tipos';
@@ -40,22 +40,34 @@ export function Operadora({ nombre }: { nombre: string | null }) {
           ? 'bg-[#EAF5E8] text-[#34713A] ring-[#C9E3C5]'
           : 'bg-[#F1F3F6] text-[#525B6A] ring-[#DDE2E8]';
 
-  return <span className={clsx('inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset', color)}>{fTexto(nombre)}</span>;
+  return <span className={clsx('inline-flex max-w-56 whitespace-normal break-words rounded-md px-2 py-1 text-xs font-semibold leading-4 ring-1 ring-inset', color)}>{fTexto(nombre)}</span>;
+}
+
+function DocumentoMovil({ documento }: { documento: string | null }) {
+  if (!documento) return <span className="text-gris">—</span>;
+  const digitos = documento.replace(/\D/g, '');
+  const tipo = digitos.length === 11 ? 'RUC' : digitos.length === 8 ? 'DNI' : null;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {tipo && <span className="rounded bg-[#f1f3f6] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-gris">{tipo}</span>}
+      <span className="font-mono text-xs font-medium tracking-wide text-texto">{documento}</span>
+    </span>
+  );
 }
 
 const colDeudas: Columna<Deuda>[] = [
   { titulo: 'Periodo', celda: (d) => <PeriodoCelda periodo={d.periodo} /> },
-  { titulo: 'Entidad', celda: (d) => <span className="font-semibold text-texto">{fTexto(d.entidad)}</span>, className: 'max-w-64' },
+  { titulo: 'Entidad', celda: (d) => <span className="block max-w-64 whitespace-normal break-words font-semibold leading-5 text-texto" title={d.entidad ?? undefined}>{fTexto(d.entidad)}</span>, className: 'w-64 min-w-64 whitespace-normal' },
   { titulo: 'Tipo de deuda', celda: (d) => <span className="text-gris">{fTexto(d.tipoDeuda)}</span> },
   { titulo: 'Días', celda: (d) => <span className="font-medium">{fNumero(d.dias)}</span>, derecha: true },
-  { titulo: 'Calificación', celda: (d) => d.calificacion ? <Chip tono={tonoCalificacion(d.calificacion)}>{d.calificacion}</Chip> : '—' },
+  { titulo: 'Clasificación', celda: (d) => d.calificacion ? <Chip tono={tonoCalificacion(d.calificacion)}>{d.calificacion}</Chip> : '—' },
   { titulo: 'Saldo', celda: (d) => <span className="font-bold text-azul-oscuro">{fMoneda(d.saldo)}</span>, derecha: true },
 ];
 const colLineas: Columna<LineaCredito>[] = [
   { titulo: 'Periodo', celda: (l) => <PeriodoCelda periodo={l.periodo} /> },
-  { titulo: 'Entidad', celda: (l) => <span className="font-semibold">{fTexto(l.entidad)}</span> },
+  { titulo: 'Entidad', celda: (l) => <span className="block max-w-64 whitespace-normal break-words font-semibold leading-5" title={l.entidad ?? undefined}>{fTexto(l.entidad)}</span>, className: 'w-64 min-w-64 whitespace-normal' },
   { titulo: 'Tipo', celda: (l) => <span className="text-gris">{fTexto(l.tipo)}</span> },
-  { titulo: 'Línea', celda: (l) => <span className="font-medium">{fMoneda(l.lineaCreditoMonto)}</span>, derecha: true },
+  { titulo: 'Línea de crédito', celda: (l) => <span className="font-medium">{fMoneda(l.lineaCreditoMonto)}</span>, derecha: true },
   { titulo: 'Utilizada', celda: (l) => {
     const total = l.lineaCreditoMonto ?? 0;
     const usada = l.lineaUtilizada ?? 0;
@@ -84,27 +96,35 @@ const colSueldos: Columna<Sueldo>[] = [
   { titulo: 'Nivel', celda: (s) => fTexto(s.nivelIngreso) },
 ];
 export const colMoviles: Columna<Movil>[] = [
-  { titulo: 'Teléfono', celda: (m) => <span className="font-bold text-azul">{fTexto(m.telefono)}</span> },
-  { titulo: 'Titular', celda: (m) => <span className="font-medium">{nombreCompleto(m.prenombres, m.apePat, m.apeMat)}</span> },
-  { titulo: 'Documento', celda: (m) => fTexto(m.documento) },
-  { titulo: 'Operadora', celda: (m) => <Operadora nombre={m.empresaOperadora} /> },
-  { titulo: 'Plan', celda: (m) => fTexto(m.planMovil) },
-  { titulo: 'Modalidad', celda: (m) => fTexto(m.modalidad) },
-  { titulo: 'Alta', celda: (m) => fFecha(m.fechaAlta) },
   { titulo: 'Periodo', celda: (m) => <PeriodoCelda periodo={m.periodo} /> },
+  { titulo: 'Operadora', celda: (m) => <span className="inline-flex items-start gap-2"><Building2 aria-hidden className="mt-1 size-3.5 shrink-0 text-gris" /><Operadora nombre={m.empresaOperadora} /></span>, className: 'min-w-48' },
+  { titulo: 'Teléfono', celda: (m) => <span className="inline-flex items-center gap-2 rounded-lg bg-azul-10/70 px-2.5 py-1.5 font-bold text-azul-oscuro"><PhoneCall aria-hidden className="size-3.5 text-azul" />{fTexto(m.telefono)}</span> },
+  { titulo: 'Titular', celda: (m) => <span className="inline-flex items-center gap-2 font-semibold text-texto"><UserRound aria-hidden className="size-4 shrink-0 text-gris" />{nombreCompleto(m.prenombres, m.apePat, m.apeMat)}</span>, className: 'min-w-52' },
+  { titulo: 'Documento', celda: (m) => <span className="inline-flex items-center gap-1.5"><IdCard aria-hidden className="size-3.5 shrink-0 text-gris" /><DocumentoMovil documento={m.documento} /></span> },
+  { titulo: 'Plan', celda: (m) => <span className="inline-flex items-center gap-1.5 text-gris"><CreditCard aria-hidden className="size-3.5 shrink-0" />{fTexto(m.planMovil)}</span> },
+  { titulo: 'Modalidad', celda: (m) => <span className="inline-flex items-center gap-1.5 text-gris"><Smartphone aria-hidden className="size-3.5 shrink-0" />{fTexto(m.modalidad)}</span> },
+  { titulo: 'Alta', celda: (m) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-gris"><CalendarDays aria-hidden className="size-3.5 shrink-0" />{fFecha(m.fechaAlta)}</span> },
 ];
 
 // Para tablas sin tipo fijo (la API de empresas devuelve telefonos y sueldos como objetos libres)
 function columnasLibres(filas: Record<string, unknown>[]): Columna<Record<string, unknown>>[] {
   const claves = [...new Set(filas.flatMap((f) => Object.keys(f)))].filter((k) => !/^(id|fechaCarga)$/i.test(k)).slice(0, 10);
   return claves.map((k) => ({
-    titulo: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
+    titulo: ({ periodo: 'Periodo', documento: 'Documento', ruc: 'RUC', apepat: 'Apellido paterno', apemat: 'Apellido materno', prenombres: 'Nombres', telefono: 'Teléfono', fechaalta: 'Fecha de alta', planmovil: 'Plan móvil', modalidad: 'Modalidad', empresaoperadora: 'Empresa operadora' } as Record<string, string>)[k.replace(/[_\s]/g, '').toLowerCase()] ?? k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
     celda: (f) => {
       const v = f[k];
       if (typeof v === 'number') return /monto|sueldo|saldo|ingreso|bono/i.test(k) ? fMoneda(v) : fNumero(v);
-      if (k.toLowerCase() === 'periodo') return fPeriodo(String(v ?? ''));
+      const campo = k.replace(/[_\s]/g, '').toLowerCase();
+      if (campo === 'periodo') return <PeriodoCelda periodo={v == null ? null : String(v)} />;
+      if (campo === 'documento' || campo === 'ruc') return <DocumentoMovil documento={v == null ? null : String(v)} />;
+      if (campo === 'empresaoperadora') return <Operadora nombre={v == null ? null : String(v)} />;
+      if (campo === 'telefono') return <span className="font-bold text-azul-oscuro">{fTexto(v == null ? null : String(v))}</span>;
+      if (campo === 'apepat' || campo === 'apemat' || campo === 'prenombres') return <span className="font-medium text-texto">{fTexto(v == null ? null : String(v))}</span>;
+      if (campo === 'fechaalta') return <span className="whitespace-nowrap text-gris">{fFecha(v == null ? null : String(v))}</span>;
+      if (campo === 'planmovil' || campo === 'modalidad') return <span className="text-gris">{fTexto(v == null ? null : String(v))}</span>;
       return fTexto(v == null ? null : String(v));
     },
+    className: k.replace(/[_\s]/g, '').toLowerCase() === 'empresaoperadora' ? 'w-64 min-w-64 whitespace-normal' : undefined,
   }));
 }
 

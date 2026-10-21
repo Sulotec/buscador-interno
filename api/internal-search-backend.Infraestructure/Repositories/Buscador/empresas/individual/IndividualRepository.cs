@@ -1,4 +1,4 @@
-﻿using internal_search.Domain.DTOs.buscador.empresa.individual;
+using internal_search.Domain.DTOs.buscador.empresa.individual;
 using internal_search.Domain.Entities;
 using internal_search.Domain.Interfaces.Buscador.empresas.individual;
 using Microsoft.EntityFrameworkCore;
@@ -166,5 +166,7 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.empresas
                 Calificaciones = new List<Calificacion>()
             };
         }
+
+
     }
 }

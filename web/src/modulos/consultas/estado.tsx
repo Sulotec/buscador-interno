@@ -5,7 +5,7 @@ import type { ResultadoEmpresa } from '@/modulos/empresas/tipos';
 import type { ResultadoPersona, ResultadoReniec, ResultadoTelefono } from '@/modulos/personas/tipos';
 import type { TipoDocumento } from '@/modulos/personas/documentos';
 
-type ModoPersona = 'documento' | 'telefono' | 'nombres';
+type ModoPersona = 'documento' | 'telefono' | 'nombres' | 'fallecidos';
 type ModoEmpresa = 'ruc' | 'razon';
 
 type EstadoConsultas = {

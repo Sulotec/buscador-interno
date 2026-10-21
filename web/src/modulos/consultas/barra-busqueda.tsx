@@ -39,19 +39,19 @@ export function BarraBusqueda({
       {prefijo}
       <label className="relative flex-1">
         <span className="sr-only">{etiqueta}</span>
-        <Search className="pointer-events-none absolute left-3.5 top-[22px] size-5 -translate-y-1/2 text-gris" aria-hidden />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gris" aria-hidden />
         <input
           value={valor} onChange={(e) => cambiar(e.target.value)} maxLength={longitudMaxima}
           inputMode={numerica ? 'numeric' : 'text'} placeholder={placeholder} aria-invalid={Boolean(error) || undefined}
           autoComplete="off"
           className={clsx(
-            'input input--busqueda numeros h-11 pl-11 text-base',
+            'input input--busqueda numeros h-10 pl-11 text-base',
             error && 'input--error',
           )}
         />
         {error && <span className="mt-1 block text-xs text-peligro">{error}</span>}
       </label>
-      <Boton type="submit" cargando={cargando} className="h-11 px-6">Consultar</Boton>
+      <Boton type="submit" cargando={cargando} className="h-10 px-6">Consultar</Boton>
     </form>
   );
 }

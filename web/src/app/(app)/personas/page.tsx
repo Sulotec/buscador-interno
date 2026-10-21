@@ -1,6 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { IdCard, Phone, UserRound, UserSearch } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { ChevronDown, HeartCrack, IdCard, Phone, UserRound, UserSearch } from 'lucide-react';
 import { BarraBusqueda } from '@/modulos/consultas/barra-busqueda';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
 import { FichaReniec } from '@/modulos/personas/ficha-reniec';
@@ -12,8 +12,19 @@ import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, validarDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
 import { SelectorDocumento } from '@/modulos/personas/selector-documento';
 import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
+import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre } from '@/modulos/personas/tipos';
 
-type Modo = 'documento' | 'telefono' | 'nombres';
+type Modo = 'documento' | 'telefono' | 'nombres' | 'fallecidos';
+
+const columnasFallecidos = [
+  { titulo: 'DNI', celda: (r: RegistroFallecido) => <span className="numeros font-semibold">{fTexto(r.dni)}</span> },
+  { titulo: 'Ape. paterno', celda: (r: RegistroFallecido) => fTexto(r.apePat) },
+  { titulo: 'Ape. materno', celda: (r: RegistroFallecido) => fTexto(r.apeMat) },
+  { titulo: 'Prenombres', celda: (r: RegistroFallecido) => fTexto(r.prenombres) },
+  { titulo: 'Restricción', celda: (r: RegistroFallecido) => fTexto(r.deRestriccion) },
+  { titulo: 'Nacimiento', celda: (r: RegistroFallecido) => fFecha(r.fechaNacimiento) },
+  { titulo: 'Fallecimiento', celda: (r: RegistroFallecido) => <span className="font-semibold text-peligro">{fFecha(r.fechaFallecimiento)}</span> },
+];
 
 export default function Personas() {
   const { actualizarSaldo } = useSesion();
@@ -25,6 +36,16 @@ export default function Personas() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [cargandoReniec, setCargandoReniec] = useState(false);
+  const [apePat, setApePat] = useState('');
+  const [apeMat, setApeMat] = useState('');
+  const [nombres, setNombres] = useState('');
+  const [resultadosNombres, setResultadosNombres] = useState<ResultadoNombre[] | null>(null);
+  const [documentoNombreSeleccionado, setDocumentoNombreSeleccionado] = useState('');
+  const [dniFallecido, setDniFallecido] = useState('');
+  const [apePatFallecido, setApePatFallecido] = useState('');
+  const [apeMatFallecido, setApeMatFallecido] = useState('');
+  const [prenombresFallecido, setPrenombresFallecido] = useState('');
+  const [resultadoFallecido, setResultadoFallecido] = useState<ResultadoFallecidos | null>(null);
 
   const buscarDocumento = useCallback(async (t: TipoDocumento, numero: string) => {
     setModo('documento');
@@ -60,6 +81,51 @@ export default function Personas() {
       actualizarSaldo();
     }
   }, [actualizarSaldo, setModo, setTelefono, setEntradaTelefono]);
+
+  async function buscarPorNombres() {
+    setModo('nombres');
+    setError('');
+    setResultadosNombres(null);
+    setDocumentoNombreSeleccionado('');
+    setCargando(true);
+    try {
+      setResultadosNombres(await servicioPersonas.porNombres(apePat.trim(), apeMat.trim(), nombres.trim()));
+    } catch (e) {
+      setError(e instanceof ErrorApi ? e.message : 'No se pudo buscar por apellidos y nombres.');
+    } finally {
+      setCargando(false);
+      actualizarSaldo();
+    }
+  }
+
+  async function buscarFallecido(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const dni = dniFallecido.trim();
+    const paterno = apePatFallecido.trim();
+    const materno = apeMatFallecido.trim();
+    const prenombres = prenombresFallecido.trim();
+    if (dni && !/^\d{8}$/.test(dni)) {
+      setError('El DNI debe tener exactamente 8 dígitos.');
+      return;
+    }
+    if (!dni && (paterno.length < 2 || (!materno && !prenombres))) {
+      setError('Ingresa un DNI o el apellido paterno y al menos otro dato.');
+      return;
+    }
+    setError('');
+    setResultadoFallecido(null);
+    setCargando(true);
+    try {
+      setResultadoFallecido(await servicioPersonas.buscarFallecidos({
+        dni: dni || null, apePat: paterno || null, apeMat: materno || null, prenombres: prenombres || null,
+      }));
+    } catch (e) {
+      setError(e instanceof ErrorApi ? e.message : 'No se pudo consultar el registro de fallecimiento.');
+    } finally {
+      setCargando(false);
+      actualizarSaldo();
+    }
+  }
 
   async function consultarReniec() {
     if (!persona) return;
@@ -119,6 +185,7 @@ export default function Personas() {
             { id: 'documento', texto: 'Documento', icono: <IdCard className="size-4" /> },
             { id: 'telefono', texto: 'Teléfono', icono: <Phone className="size-4" /> },
             { id: 'nombres', texto: 'Apellidos y nombres', icono: <UserRound className="size-4" /> },
+            { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
           ]}
         />
       </div>
@@ -126,14 +193,14 @@ export default function Personas() {
       <Tarjeta>
         <div className="mb-4 flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-azul-10 text-azul">
-            {modo === 'documento' ? <IdCard className="size-5" /> : modo === 'telefono' ? <Phone className="size-5" /> : <UserRound className="size-5" />}
+            {modo === 'documento' ? <IdCard className="size-5" /> : modo === 'telefono' ? <Phone className="size-5" /> : modo === 'fallecidos' ? <HeartCrack className="size-5" /> : <UserRound className="size-5" />}
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-texto">
-              {modo === 'documento' ? 'Buscar por documento' : modo === 'telefono' ? 'Buscar por teléfono' : 'Buscar por apellidos y nombres'}
+              {modo === 'documento' ? 'Buscar por documento' : modo === 'telefono' ? 'Buscar por teléfono' : modo === 'fallecidos' ? 'Verificar fallecimiento' : 'Buscar por apellidos y nombres'}
             </h2>
             <p className="mt-0.5 text-xs text-gris">
-              {modo === 'documento' ? 'Selecciona el tipo e ingresa el número del documento.' : modo === 'telefono' ? 'Ingresa el celular asociado a la persona.' : 'Esta modalidad estará disponible próximamente.'}
+              {modo === 'documento' ? 'Selecciona el tipo e ingresa el número del documento.' : modo === 'telefono' ? 'Ingresa el celular asociado a la persona.' : modo === 'fallecidos' ? 'Consulta si RENIEC informa una fecha de fallecimiento para el DNI.' : 'Ingresa el apellido paterno y completa los demás datos para afinar la búsqueda.'}
             </p>
           </div>
         </div>
@@ -149,9 +216,64 @@ export default function Personas() {
             validar={(v) => (/^\d{9}$/.test(v) ? null : 'El teléfono debe tener 9 dígitos.')} alBuscar={buscarTelefono} />
         )}
         {modo === 'nombres' && (
-          <Vacio icono={<UserRound className="size-5" />} titulo="Búsqueda por apellidos y nombres: próximamente">
-            Esta búsqueda aún no está disponible en el sistema. Mientras tanto, consulta por DNI o por teléfono.
-          </Vacio>
+          <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.3fr_auto] lg:items-end" onSubmit={(e) => { e.preventDefault(); void buscarPorNombres(); }}>
+            <label className="block">
+              <span className=" mb-1.5 block text-sm font-medium text-texto">Apellido paterno</span>
+              <span className="relative block">
+                <UserRound aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                <input value={apePat} onChange={(e) => setApePat(e.target.value)} maxLength={50} required placeholder="Ej. García" className="input input--icono h-10" />
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-texto">Apellido materno</span>
+              <span className="relative block">
+                <UserRound aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                <input value={apeMat} onChange={(e) => setApeMat(e.target.value)} maxLength={50} placeholder="Ej. López (opcional)" className="input input--icono h-10" />
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-texto">Nombres</span>
+              <span className="relative block">
+                <UserSearch aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                <input value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={100} placeholder="Ej. Ana María (opcional)" className="input input--icono h-10" />
+              </span>
+            </label>
+            <Boton type="submit" cargando={cargando} disabled={apePat.trim().length < 2}><UserSearch className="size-4" />Buscar</Boton>
+          </form>
+        )}
+        {modo === 'fallecidos' && (
+          <div>
+            <p className="mb-3 text-sm text-gris">Busca por DNI o filtra por apellidos y prenombres.</p>
+            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.2fr_auto] lg:items-end" onSubmit={buscarFallecido}>
+              <label className="block min-w-0">
+                <span className="mb-1.5 block text-sm font-medium text-texto">DNI <span className="font-normal text-gris">(opcional)</span></span>
+                <span className="relative block">
+                  <IdCard aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                  <input value={dniFallecido} onChange={(e) => setDniFallecido(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    inputMode="numeric" maxLength={8} placeholder="8 dígitos" className="input input--icono h-10" />
+                </span>
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1.5 block text-sm font-medium text-texto">Apellido paterno</span>
+                <span className="relative block"><UserRound aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                  <input value={apePatFallecido} onChange={(e) => setApePatFallecido(e.target.value)} maxLength={50} placeholder="Ej. García" className="input input--icono h-10" />
+                </span>
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1.5 block text-sm font-medium text-texto">Apellido materno</span>
+                <span className="relative block"><UserRound aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                  <input value={apeMatFallecido} onChange={(e) => setApeMatFallecido(e.target.value)} maxLength={50} placeholder="Ej. López" className="input input--icono h-10" />
+                </span>
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1.5 block text-sm font-medium text-texto">Prenombres</span>
+                <span className="relative block"><UserSearch aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gris" />
+                  <input value={prenombresFallecido} onChange={(e) => setPrenombresFallecido(e.target.value)} maxLength={100} placeholder="Ej. Ana María" className="input input--icono h-10" />
+                </span>
+              </label>
+              <Boton type="submit" cargando={cargando} disabled={dniFallecido.length > 0 && dniFallecido.length !== 8}><HeartCrack className="size-4" />Consultar</Boton>
+            </form>
+          </div>
         )}
       </Tarjeta>
 
@@ -172,6 +294,40 @@ export default function Personas() {
           <Resumen s={persona} />
           <SeccionesResultado s={persona} />
         </div>
+      )}
+
+      {modo === 'nombres' && resultadosNombres && (
+        resultadosNombres.length ? <div className="space-y-6">
+          <p className="text-sm font-medium text-gris">{fNumero(resultadosNombres.length)} coincidencias encontradas</p>
+          <div className="max-w-2xl">
+            <label htmlFor="coincidencia-persona" className="mb-1.5 block text-sm font-medium text-texto">Selecciona una persona</label>
+            <span className="relative block">
+              <select id="coincidencia-persona" value={documentoNombreSeleccionado} onChange={(e) => setDocumentoNombreSeleccionado(e.target.value)}
+                className="selector-documento__select focus-control w-full cursor-pointer appearance-none rounded-xl border-2 border-borde bg-white p-2 pr-10 text-sm font-semibold text-texto transition-colors hover:border-azul-25 focus:border-azul focus:outline-none">
+                <option value="">Elige entre {fNumero(resultadosNombres.length)} coincidencias</option>
+                {resultadosNombres.map((resultado) => (
+                  <option className="selector-documento__opcion" key={resultado.documento} value={resultado.documento}>{resultado.nombreCompleto} · {resultado.documento}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-azul" aria-hidden />
+            </span>
+          </div>
+          {(() => {
+            const seleccionado = resultadosNombres.find((r) => r.documento === documentoNombreSeleccionado);
+            return seleccionado ? (
+              <div className="space-y-4 border-t border-borde pt-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-texto">{seleccionado.nombreCompleto}</h2>
+                  <p className="numeros mt-0.5 text-sm text-gris">Documento {seleccionado.documento}</p>
+                </div>
+                <Resumen s={seleccionado} />
+                <SeccionesResultado s={seleccionado} />
+              </div>
+            ) : <Vacio icono={<UserRound className="size-5" />} titulo="Selecciona una persona">Elige una coincidencia para ver su información completa.</Vacio>;
+          })()}
+        </div> : <Vacio icono={<UserRound className="size-5" />} titulo="No encontramos coincidencias">
+          Prueba con otra combinación de apellidos y nombres.
+        </Vacio>
       )}
 
       {modo === 'telefono' && telefono && (
@@ -220,6 +376,15 @@ export default function Personas() {
         </div>
       )}
 
+      {modo === 'fallecidos' && resultadoFallecido && (
+        <div className="space-y-3">
+          <Seccion titulo="Registros de fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={resultadoFallecido.fallecidos.length}>
+            <Tabla columnas={columnasFallecidos} filas={resultadoFallecido.fallecidos} clave={(fila, i) => `${fila.dni}-${i}`} vacio="No se encontraron registros con esos filtros." />
+          </Seccion>
+          {resultadoFallecido.hayMasResultados && <Aviso tono="alerta">Se muestran hasta 200 coincidencias. Agrega más datos para precisar la búsqueda.</Aviso>}
+        </div>
+      )}
+
       {!cargando && !error && modo === 'documento' && !persona && (
         <Vacio icono={<UserSearch className="size-5" />} titulo="Escribe un documento para empezar">
           Verás deudas, líneas de crédito, calificaciones, información laboral y teléfonos.
@@ -228,6 +393,16 @@ export default function Personas() {
       {!cargando && !error && modo === 'telefono' && !telefono && (
         <Vacio icono={<Phone className="size-5" />} titulo="Escribe un teléfono para empezar">
           Verás los registros asociados al número consultado.
+        </Vacio>
+      )}
+      {!cargando && !error && modo === 'nombres' && !resultadosNombres && (
+        <Vacio icono={<UserRound className="size-5" />} titulo="Escribe un nombre y apellido para empezar">
+          Ingresa al menos el apellido paterno. Puedes añadir el apellido materno y los nombres para afinar la búsqueda.
+        </Vacio>
+      )}
+      {!cargando && !error && modo === 'fallecidos' && !resultadoFallecido && (
+        <Vacio icono={<HeartCrack className="size-5" />} titulo="Busca registros de fallecidos">
+          Ingresa un DNI o el apellido paterno junto con otro dato para consultar.
         </Vacio>
       )}
     </div>

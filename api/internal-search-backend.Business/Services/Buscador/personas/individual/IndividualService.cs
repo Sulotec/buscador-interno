@@ -1,5 +1,6 @@
 ﻿using internal_search.Domain.DTOs.buscador.persona.individual;
 using internal_search.Domain.DTOs.buscador.persona.masivos;
+using internal_search.Domain.DTOs.buscador.persona.individual;
 using internal_search.Domain.Entities;
 using internal_search.Domain.Interfaces.Buscador.personas.individual;
 
@@ -67,5 +68,9 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 Registros = registros
             };
         }
+
+        public Task<List<BuscadorNombresResultado>> BuscarPorNombresAsync(
+            BuscadorNombresEntrada entrada, CancellationToken ct) =>
+            _repository.BuscarPorNombresAsync(entrada.ApePat.Trim(), entrada.ApeMat?.Trim(), entrada.Nombres?.Trim(), ct);
     }
 }

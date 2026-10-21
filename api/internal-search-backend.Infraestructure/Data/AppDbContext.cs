@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Movil> Movil { get; set; }
     public DbSet<LineaCredito> LineaCreditos { get; set; }
     public DbSet<Sueldo> Sueldos { get; set; }
+    public DbSet<Fallecidos> Fallecidos { get; set; }
 
     // NUEVO
     public DbSet<HistorialDescarga> HistorialDescargas { get; set; }

@@ -43,6 +43,10 @@
   padding-left: 2.75rem;
 }
 
+.input--icono {
+  padding-left: 3rem;
+}
+
 .selector-documento__opcion {
   color: var(--color-texto);
   background-color: #fff;

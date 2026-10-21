@@ -10,7 +10,7 @@ export function SelectorDocumento({ valor, alCambiar }: { valor: TipoDocumento; 
       <select
         value={valor}
         onChange={(e) => alCambiar(e.target.value as TipoDocumento)}
-        className="selector-documento__select focus-control p-2 w-full cursor-pointer appearance-none rounded-xl border-2 border-borde bg-white pl-4 text-sm font-semibold text-texto shadow-sm transition-colors hover:border-azul-25"
+        className="selector-documento__select focus-control p-2 w-full cursor-pointer appearance-none rounded-xl border-2 border-borde bg-white pl-4 pr-9 text-sm font-semibold text-texto shadow-sm transition-colors hover:border-azul-25"
       >
         {TIPOS_DOCUMENTO.map((t) => <option className="selector-documento__opcion" key={t.id} value={t.id}>{t.etiqueta}</option>)}
       </select>

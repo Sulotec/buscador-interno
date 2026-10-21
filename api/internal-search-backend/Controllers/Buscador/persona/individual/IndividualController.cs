@@ -18,12 +18,18 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
         private const int CostoConsulta = 1;
 
         private readonly IIndividualService _buscadorService;
+        private readonly IFallecidosService _fallecidosService;
         private readonly ITokenService _tokens;
         private readonly IReniecService _reniec;
 
-        public BuscadorController(IIndividualService buscadorService, ITokenService tokens, IReniecService reniec)
+        public BuscadorController(
+            IIndividualService buscadorService,
+            IFallecidosService fallecidosService,
+            ITokenService tokens,
+            IReniecService reniec)
         {
             _buscadorService = buscadorService;
+            _fallecidosService = fallecidosService;
             _tokens = tokens;
             _reniec = reniec;
         }
@@ -67,7 +73,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
                 () => _buscadorService.BuscarAsync(entrada, ct));
             return Ok(resultado);
         }
-
+        
         [HttpPost("buscar-telefono")]
         [ProducesResponseType(typeof(BuscadorTelefonoResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -78,6 +84,44 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
                 this.Contexto(), CostoConsulta, "BUSQUEDA_TELEFONO",
                 entrada.Telefono,
                 () => _buscadorService.BuscarPorTelefonoAsync(entrada.Telefono, ct));
+            return Ok(resultado);
+        }
+
+        /// <summary>Busca personas por apellidos y nombres. Devuelve hasta 100 coincidencias.</summary>
+        [HttpPost("buscar-nombres")]
+        [ProducesResponseType(typeof(List<BuscadorNombresResultado>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
+        public async Task<IActionResult> BuscarPorNombres(
+            [FromBody] BuscadorNombresEntrada entrada, CancellationToken ct)
+        {
+            var detalle = string.Join(" ", new[] { entrada.ApePat, entrada.ApeMat, entrada.Nombres }
+                .Where(x => !string.IsNullOrWhiteSpace(x)));
+            var resultado = await _tokens.EjecutarAsync(
+                this.Contexto(), CostoConsulta, "BUSQUEDA_PERSONA_NOMBRES", detalle,
+                () => _buscadorService.BuscarPorNombresAsync(entrada, ct));
+
+            return Ok(resultado);
+        }
+
+        /// <summary>Busca registros de fallecidos por DNI exacto o por apellidos y prenombres.</summary>
+        [HttpPost("buscar-fallecidos")]
+        [ProducesResponseType(typeof(BusquedaPersonasResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
+        public async Task<IActionResult> BuscarFallecidos(
+            [FromBody] BuscarFallecidosRequestDto entrada,
+            CancellationToken ct)
+        {
+            var detalle = !string.IsNullOrWhiteSpace(entrada.Dni)
+                ? $"DNI {entrada.Dni.Trim()}"
+                : string.Join(" ", new[] { entrada.ApePat, entrada.ApeMat, entrada.Prenombres }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            var resultado = await _tokens.EjecutarAsync(
+                this.Contexto(), CostoConsulta, "BUSQUEDA_FALLECIDOS", detalle,
+                () => _fallecidosService.BuscarPersonasAsync(entrada, ct));
+
             return Ok(resultado);
         }
     }
