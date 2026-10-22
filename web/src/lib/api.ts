@@ -102,6 +102,21 @@ export async function descargar(ruta: string, porDefecto: string): Promise<Archi
   return { blob: await respuesta.blob(), nombre: nombreDeArchivo(respuesta.headers.get('Content-Disposition'), porDefecto) };
 }
 
+export async function enviarYDescargar(ruta: string, datos: unknown, porDefecto: string): Promise<Archivo> {
+  const respuesta = await fetch(`/backend/${ruta}`, {
+    method: 'POST',
+    headers: { Accept: 'application/pdf', 'Content-Type': 'application/json' },
+    body: JSON.stringify(datos),
+    cache: 'no-store',
+  });
+  if (!respuesta.ok) {
+    alExpirar(respuesta.status);
+    const { mensaje, fueraDeSede } = await mensajeDe(respuesta);
+    throw new ErrorApi(mensaje, respuesta.status, fueraDeSede);
+  }
+  return { blob: await respuesta.blob(), nombre: nombreDeArchivo(respuesta.headers.get('Content-Disposition'), porDefecto) };
+}
+
 export function guardarArchivo({ blob, nombre }: Archivo) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

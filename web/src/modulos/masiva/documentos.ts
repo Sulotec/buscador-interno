@@ -11,7 +11,7 @@ const TIPOS_PERSONAS = [
   { nombre: 'Carnet de extranjería', patron: /^\d{9}$/ },
   { nombre: 'Otros documentos', patron: /^[A-Z0-9-]{4,20}$/ },
 ];
-const TIPOS_EMPRESAS = [{ nombre: 'RUC', patron: /^(10|15|16|17|20)\d{9}$/ }];
+const TIPOS_EMPRESAS = [{ nombre: 'RUC', patron: /^20\d{9}$/ }];
 
 const ENCABEZADOS = /^(dni|ruc|ce|pasaporte|documento|documentos|nro|numero|número|tipo)$/i;
 

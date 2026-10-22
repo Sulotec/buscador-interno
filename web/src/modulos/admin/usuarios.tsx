@@ -39,19 +39,25 @@ export function AdminUsuarios() {
   }
 
   const columnas: Columna<UsuarioListado>[] = [
-    { titulo: 'Usuario', celda: (u) => <span><span className="block font-semibold">{u.nombreCompleto}</span><span className="block text-xs text-gris">{u.usuario}{u.correo ? ` · ${u.correo}` : ''}</span></span> },
-    { titulo: 'Roles', celda: (u) => <div className="flex flex-wrap gap-1">{u.roles.map((r) => <Chip key={r} tono={r.toUpperCase() === 'ADMIN GENERAL' ? 'peligro' : 'azul'}>{r}</Chip>)}</div> },
-    { titulo: 'Tokens', celda: (u) => fNumero(u.saldoTokens), derecha: true },
-    { titulo: 'Estado', celda: (u) => <Chip tono={u.estado === 1 ? 'verde' : 'neutro'}>{u.estado === 1 ? 'Activo' : 'Inactivo'}</Chip> },
+    { titulo: 'Usuario', celda: (u) => {
+      const iniciales = u.nombreCompleto.split(/\s+/).filter(Boolean).slice(0, 2).map((parte) => parte[0]).join('').toUpperCase();
+      return <div className="flex min-w-56 items-center gap-3">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">{iniciales || u.usuario.slice(0, 2).toUpperCase()}</span>
+        <span className="min-w-0"><span className="block truncate font-semibold text-texto">{u.nombreCompleto}</span><span className="mt-0.5 block truncate text-xs text-gris">@{u.usuario}{u.correo ? ` · ${u.correo}` : ''}</span></span>
+      </div>;
+    } },
+    { titulo: 'Roles', celda: (u) => <div className="flex max-w-64 flex-wrap gap-1.5">{u.roles.length ? u.roles.map((r) => <Chip key={r} tono={r.toUpperCase() === 'ADMIN GENERAL' ? 'peligro' : 'azul'}>{r}</Chip>) : <span className="text-xs text-gris">Sin roles</span>}</div> },
+    { titulo: 'Tokens disponibles', celda: (u) => <span className="inline-flex items-center gap-2 rounded-md bg-fondo px-2.5 py-1.5 font-semibold text-texto"><Coins className="size-4 text-ambar" />{fNumero(u.saldoTokens)}</span>, derecha: true },
+    { titulo: 'Estado', celda: (u) => <span className={u.estado === 1 ? 'inline-flex items-center gap-2 text-sm font-medium text-verde' : 'inline-flex items-center gap-2 text-sm font-medium text-gris'}><span className={`size-2 rounded-full ${u.estado === 1 ? 'bg-verde' : 'bg-gris/50'}`} />{u.estado === 1 ? 'Activo' : 'Inactivo'}</span> },
     {
       titulo: 'Acciones', derecha: true,
       celda: (u) => (
-        <div className="flex justify-end gap-1">
-          <Boton variante="fantasma" className="h-8 px-2" title="Roles" aria-label={`Roles de ${u.usuario}`} onClick={() => setDialogo({ tipo: 'roles', usuario: u })}><ShieldCheck className="size-4" /></Boton>
-          <Boton variante="fantasma" className="h-8 px-2" title="Tokens" aria-label={`Tokens de ${u.usuario}`} onClick={() => setDialogo({ tipo: 'tokens', usuario: u })}><Coins className="size-4" /></Boton>
-          <Boton variante="fantasma" className="h-8 px-2" title="Cerrar sus sesiones" aria-label={`Cerrar sesiones de ${u.usuario}`} cargando={ocupado === u.id}
+        <div className="flex min-w-max justify-end gap-1.5">
+          <Boton variante="secundario" className="h-9 px-2.5 text-xs" title="Administrar roles" onClick={() => setDialogo({ tipo: 'roles', usuario: u })}><ShieldCheck className="size-4" /><span className="hidden xl:inline">Roles</span></Boton>
+          <Boton variante="secundario" className="h-9 px-2.5 text-xs" title="Administrar tokens" onClick={() => setDialogo({ tipo: 'tokens', usuario: u })}><Coins className="size-4" /><span className="hidden xl:inline">Tokens</span></Boton>
+          <Boton variante="fantasma" className="h-9 px-2" title="Cerrar sus sesiones" aria-label={`Cerrar sesiones de ${u.usuario}`} cargando={ocupado === u.id}
             onClick={() => accion(u, () => servicioAdmin.cerrarSesiones(u.id), `Se cerraron las sesiones de ${u.usuario}.`)}><LogOut className="size-4" /></Boton>
-          <Boton variante={u.estado === 1 ? 'peligro' : 'secundario'} className="h-8 px-3 text-xs"
+          <Boton variante={u.estado === 1 ? 'peligro' : 'secundario'} className="h-9 px-3 text-xs"
             onClick={() => accion(u, () => servicioAdmin.cambiarEstado(u.id, u.estado !== 1), u.estado === 1 ? `${u.usuario} quedó inactivo.` : `${u.usuario} quedó activo.`)}>
             {u.estado === 1 ? 'Desactivar' : 'Activar'}
           </Boton>
@@ -65,12 +71,28 @@ export function AdminUsuarios() {
       <Encabezado titulo="Usuarios y tokens" bajada="Crea cuentas, asigna roles y recarga tokens. Todo queda en la auditoría."
         accion={<Boton onClick={() => setDialogo({ tipo: 'crear' })}><UserPlus className="size-4" />Nuevo usuario</Boton>} />
       {aviso && <div className="mb-4"><Aviso tono={aviso.tono} alCerrar={() => setAviso(null)}>{aviso.texto}</Aviso></div>}
-      <Tarjeta sinRelleno titulo={
-        <form className="relative w-full max-w-sm" onSubmit={(e) => { e.preventDefault(); setPagina(1); setBusqueda(texto); }}>
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" />
-          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por nombre, usuario o correo"
-            className="h-9 w-full rounded-lg border border-borde bg-white pl-9 pr-3 text-sm focus:border-azul focus:outline-none" />
-        </form>}>
+      <Tarjeta className="mb-4" titulo={
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-texto"><Search className="size-4 text-azul" />Buscar usuarios</h2>
+          <p className="mt-1 text-xs font-normal text-gris">Filtra por nombre, nombre de usuario o correo electrónico.</p>
+        </div>
+      }>
+        <form className="flex flex-col gap-3 sm:flex-row sm:items-center" onSubmit={(e) => { e.preventDefault(); setPagina(1); setBusqueda(texto); }} role="search" aria-label="Buscar usuarios">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" aria-hidden />
+            <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nombre, usuario o correo" aria-label="Buscar por nombre, usuario o correo"
+              className="h-10 w-full rounded-lg border border-borde bg-white pl-9 pr-3 text-sm transition-colors placeholder:text-gris focus:border-azul focus:outline-none focus:ring-2 focus:ring-azul/15" />
+          </div>
+          <Boton type="submit" variante="secundario" className="w-full sm:w-auto"><Search className="size-4" />Buscar</Boton>
+        </form>
+      </Tarjeta>
+
+      <Tarjeta sinRelleno className="overflow-hidden" titulo={
+        <div className="flex min-w-48 flex-col gap-1">
+          <h2 className="text-base font-semibold text-texto">Directorio de usuarios</h2>
+          <p className="text-xs font-normal text-gris">{datos ? `${datos.total.toLocaleString('es-PE')} cuentas registradas` : 'Cuentas, permisos y saldo disponible'}</p>
+        </div>
+      }>
         {datos ? <>
           <Tabla columnas={columnas} filas={datos.items} clave={(u) => u.id} vacio="No hay usuarios con esa búsqueda." paginacion={false} />
           <Paginacion pagina={pagina} tamano={tamano} total={datos.total} alCambiar={setPagina}

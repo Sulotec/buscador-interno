@@ -37,18 +37,20 @@ export function BarraBusqueda({
   return (
     <form onSubmit={enviar} className="flex flex-col gap-2 sm:flex-row sm:items-start" noValidate>
       {prefijo}
-      <label className="relative flex-1">
+      <label className="flex-1">
         <span className="sr-only">{etiqueta}</span>
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gris" aria-hidden />
-        <input
-          value={valor} onChange={(e) => cambiar(e.target.value)} maxLength={longitudMaxima}
-          inputMode={numerica ? 'numeric' : 'text'} placeholder={placeholder} aria-invalid={Boolean(error) || undefined}
-          autoComplete="off"
-          className={clsx(
-            'input input--busqueda numeros h-10 pl-11 text-base',
-            error && 'input--error',
-          )}
-        />
+        <span className="relative block">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gris" aria-hidden />
+          <input
+            value={valor} onChange={(e) => cambiar(e.target.value)} maxLength={longitudMaxima}
+            inputMode={numerica ? 'numeric' : 'text'} placeholder={placeholder} aria-invalid={Boolean(error) || undefined}
+            autoComplete="off"
+            className={clsx(
+              'input input--busqueda numeros h-10 pl-11 text-base',
+              error && 'input--error',
+            )}
+          />
+        </span>
         {error && <span className="mt-1 block text-xs text-peligro">{error}</span>}
       </label>
       <Boton type="submit" cargando={cargando} className="h-10 px-6">Consultar</Boton>

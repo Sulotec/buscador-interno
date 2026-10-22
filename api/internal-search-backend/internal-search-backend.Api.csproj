@@ -23,4 +23,8 @@
     <ProjectReference Include="..\internal-search.Domain\internal-search-backend.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\assets\logo-informaPeru.png" Link="assets\logo-informaPeru.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

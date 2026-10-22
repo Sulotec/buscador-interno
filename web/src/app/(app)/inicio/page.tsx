@@ -6,12 +6,12 @@ import { ArrowRight, Building2, Check, ClipboardList, FileSpreadsheet, Search, U
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { Aviso } from '@/components/ui';
 
-const TONOS_ACCESO: Record<string, { fondo: string; borde: string; icono: string; texto: string }> = {
-  '/personas': { fondo: 'bg-[#EEEDFE]', borde: 'border-[#CECBF6]', icono: 'bg-[#CECBF6]/70 text-[#534AB7]', texto: 'text-[#534AB7]' },
-  '/empresas': { fondo: 'bg-[#E1F5EE]', borde: 'border-[#9FE1CB]', icono: 'bg-[#9FE1CB]/70 text-[#0F6E56]', texto: 'text-[#0F6E56]' },
-  '/personas/masiva': { fondo: 'bg-[#FAEEDA]', borde: 'border-[#FAC775]', icono: 'bg-[#FAC775]/70 text-[#854F0B]', texto: 'text-[#854F0B]' },
-  '/admin/usuarios': { fondo: 'bg-[#FAECE7]', borde: 'border-[#F5C4B3]', icono: 'bg-[#F5C4B3]/70 text-[#993C1D]', texto: 'text-[#993C1D]' },
-  '/admin/auditoria': { fondo: 'bg-[#F1EFE8]', borde: 'border-[#D3D1C7]', icono: 'bg-[#D3D1C7]/70 text-[#5F5E5A]', texto: 'text-[#5F5E5A]' },
+const TONOS_ACCESO: Record<string, { fondo: string; marco: string; icono: string; texto: string; acento: string }> = {
+  '/personas': { fondo: 'bg-[#EEEDFE]', marco: 'bg-[#CECBF6]', icono: 'bg-[#CECBF6]/60', texto: 'text-[#534AB7]', acento: '#7F77DD' },
+  '/empresas': { fondo: 'bg-[#E1F5EE]', marco: 'bg-[#9FE1CB]', icono: 'bg-[#9FE1CB]/60', texto: 'text-[#0F6E56]', acento: '#1D9E75' },
+  '/personas/masiva': { fondo: 'bg-[#FAEEDA]', marco: 'bg-[#FAC775]', icono: 'bg-[#FAC775]/60', texto: 'text-[#854F0B]', acento: '#EF9F27' },
+  '/admin/usuarios': { fondo: 'bg-[#FAECE7]', marco: 'bg-[#F5C4B3]', icono: 'bg-[#F5C4B3]/60', texto: 'text-[#993C1D]', acento: '#D85A30' },
+  '/admin/auditoria': { fondo: 'bg-[#F1EFE8]', marco: 'bg-[#D3D1C7]', icono: 'bg-[#D3D1C7]/60', texto: 'text-[#5F5E5A]', acento: '#888780' },
 };
 
 export default function Inicio() {
@@ -24,9 +24,9 @@ export default function Inicio() {
     e.preventDefault();
     const v = texto.replace(/\s/g, '');
     if (/^\d{8}$/.test(v)) router.push(`/personas?dni=${v}`);
-    else if (/^(10|15|16|17|20)\d{9}$/.test(v)) router.push(`/empresas?ruc=${v}`);
+    else if (/^20\d{9}$/.test(v)) router.push(`/empresas?ruc=${v}`);
     else if (/^9\d{8}$/.test(v)) router.push(`/personas?telefono=${v}`);
-    else setAviso('Escribe un DNI (8 dígitos), un RUC (11 dígitos) o un celular (9 dígitos).');
+    else setAviso('Escribe un DNI (8 dígitos), un RUC de empresa (11 dígitos, inicia con 20) o un celular (9 dígitos).');
   }
 
   const accesos = [
@@ -42,37 +42,37 @@ export default function Inicio() {
   const accesosAdmin = accesos.slice(3);
 
   return (
-    <div className="space-y-8">
-      <section className="aparecer relative isolate overflow-hidden rounded-2xl border border-borde bg-[#f3f6fb] px-5 py-6 text-texto sm:px-8 sm:py-8 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)] lg:items-center lg:gap-10">
-        <div className="pointer-events-none absolute -right-20 -top-32 -z-10 size-80 rounded-full bg-azul/5 blur-3xl" aria-hidden />
+    <div className="space-y-7">
+      <section className="aparecer relative overflow-hidden rounded-xl border border-borde bg-white px-5 py-6 text-texto sm:px-7 sm:py-7 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,.65fr)] lg:items-center lg:gap-8">
         <div>
-          <p className="text-sm font-medium text-azul">Hola, {usuario?.nombreCompleto.split(' ')[0]}</p>
+          <p className="text-sm font-semibold text-azul">Hola, {usuario?.nombreCompleto.split(' ')[0]}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-texto sm:text-3xl">¿Qué quieres consultar hoy?</h1>
-          <form onSubmit={buscar} className="mt-5 flex max-w-2xl flex-col gap-2 sm:flex-row">
+          <p className="mt-1.5 max-w-xl text-sm leading-5 text-gris">Consulta personas y empresas desde un solo lugar.</p>
+          <form onSubmit={buscar} className="mt-4 flex max-w-lg flex-col gap-2 sm:flex-row">
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">DNI, RUC o celular</span>
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-azul" aria-hidden />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-azul" aria-hidden />
               <input
-                value={texto} onChange={(e) => { setTexto(e.target.value); setAviso(''); }} inputMode="numeric" autoFocus
+                value={texto} onChange={(e) => { setTexto(e.target.value); setAviso(''); }} inputMode="numeric"
                 placeholder="DNI, RUC o celular"
-                className="numeros h-13 w-full rounded-xl border border-borde bg-white pl-12 pr-4 text-base text-texto placeholder:text-gris/70 focus:outline-none focus:ring-4 focus:ring-azul/10"
+                className="input input--busqueda numeros h-10 pr-3 text-sm"
               />
             </label>
-            <button className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-xl bg-azul px-6 font-semibold text-white transition hover:bg-azul-oscuro focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-azul/20">Buscar<ArrowRight className="size-4" /></button>
+            <button className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-azul px-4 text-sm font-semibold text-white transition hover:bg-azul-oscuro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30">Buscar<ArrowRight className="size-4" /></button>
           </form>
-          {saldo && !saldo.ilimitado && <p className="mt-3 text-xs text-gris">Te quedan {saldo.saldo.toLocaleString('es-PE')} tokens. Cada consulta descuenta tokens.</p>}
+          {saldo && !saldo.ilimitado && <p className="mt-2.5 text-xs text-gris">Saldo disponible: {saldo.saldo.toLocaleString('es-PE')} tokens</p>}
         </div>
-        <div className="mt-6 rounded-xl border border-borde bg-white p-4 sm:p-5 lg:mt-0">
+        <div className="mt-5 border-t border-borde pt-4 lg:mt-0 lg:border-l lg:border-t-0 lg:py-2 lg:pl-7">
           <p className="text-sm font-semibold text-texto">Busca con cualquiera de estos datos</p>
-          <ul className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+          <ul className="mt-2 grid gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
             {[
-              ['DNI', '8 dígitos', 'bg-azul-10 text-azul'],
-              ['RUC', '11 dígitos', 'bg-[#fdeaea] text-peligro'],
-              ['Celular', '9 dígitos', 'bg-verde-10 text-verde'],
-            ].map(([tipo, detalle, tono]) => (
-              <li key={tipo} className="flex items-center gap-3 rounded-lg bg-fondo/70 px-3 py-2.5">
-                <span className={`min-w-14 rounded-md px-2 py-1 text-center text-xs font-bold ${tono}`}>{tipo}</span>
-                <span className="text-sm text-gris">{detalle}</span>
+              ['DNI', '8 dígitos'],
+              ['RUC', '11 dígitos'],
+              ['Celular', '9 dígitos'],
+            ].map(([tipo, detalle]) => (
+              <li key={tipo} className="flex items-center gap-3 rounded-md px-1 py-1.5">
+                <span className="min-w-14 rounded-md bg-azul-10 px-2 py-1 text-center text-[11px] font-bold text-azul">{tipo}</span>
+                <span className="text-xs text-gris">{detalle}</span>
               </li>
             ))}
           </ul>
@@ -80,16 +80,24 @@ export default function Inicio() {
       </section>
       {aviso && <Aviso tono="alerta" alCerrar={() => setAviso('')}>{aviso}</Aviso>}
 
-      <section aria-label="Accesos principales" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section aria-label="Accesos principales" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {accesosPrincipales.map(({ href, titulo, texto: t, icono: Icono }, i) => {
           const tono = TONOS_ACCESO[href];
-          return <Link key={href} href={href} style={{ animationDelay: `${i * 50}ms` }}
-            className={`aparecer group flex min-h-40 flex-col justify-between rounded-xl border p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30 ${tono.fondo} ${tono.borde}`}>
-            <span className="flex items-start justify-between gap-3">
-              <span className={`grid size-11 place-items-center rounded-xl ${tono.icono}`}><Icono className="size-5" aria-hidden /></span>
-              <span className={`grid size-8 place-items-center rounded-full bg-white/70 transition group-hover:translate-x-0.5 ${tono.texto}`}><ArrowRight className="size-4" aria-hidden /></span>
+          return <Link key={href} href={href} style={{ animationDelay: `${i * 50}ms`, '--acento': tono.acento } as React.CSSProperties}
+            className={`aparecer group relative isolate flex min-h-36 flex-col justify-between overflow-hidden rounded-xl p-[3px] transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30 ${tono.marco}`}>
+            <span aria-hidden className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none">
+              <span className="aspect-square w-[200%] shrink-0 animate-none bg-[conic-gradient(transparent_0deg,transparent_220deg,var(--acento)_300deg,#fff_350deg,transparent_360deg)] group-hover:animate-[spin_2.5s_linear_infinite] motion-reduce:animate-none" />
             </span>
-            <span className="mt-5 block">
+            <span aria-hidden className={`absolute inset-[3px] overflow-hidden rounded-[calc(0.75rem-3px)] ${tono.fondo}`}>
+              <span className="absolute -right-8 -top-8 size-28 scale-50 rounded-full bg-[var(--acento)] opacity-0 transition-all duration-500 ease-out group-hover:scale-100 group-hover:opacity-15 motion-reduce:transition-none" />
+              <span className="absolute inset-y-0 left-0 w-1/3 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/65 to-transparent transition-none group-hover:translate-x-[400%] group-hover:transition-transform group-hover:duration-700 group-hover:ease-out motion-reduce:group-hover:translate-x-[-100%]" />
+              <span className="absolute bottom-0 left-0 h-[3px] w-0 rounded-r-full bg-[var(--acento)] transition-all duration-500 ease-out group-hover:w-full motion-reduce:transition-none" />
+            </span>
+            <span className="relative z-10 flex items-start justify-between gap-3 px-4 pt-4">
+              <span className={`grid size-10 place-items-center rounded-xl transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-6 motion-reduce:transition-none ${tono.icono} ${tono.texto}`}><Icono className="size-5" aria-hidden /></span>
+              <ArrowRight className={`mt-1 size-4 transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none ${tono.texto}`} aria-hidden />
+            </span>
+            <span className="relative z-10 mt-5 block px-4 pb-4">
               <span className="block text-base font-semibold text-texto">{titulo}</span>
               <span className="mt-1 block max-w-sm text-sm leading-5 text-gris">{t}</span>
             </span>
@@ -101,10 +109,18 @@ export default function Inicio() {
         <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
           {accesosAdmin.map(({ href, titulo, texto: t, icono: Icono }) => {
             const tono = TONOS_ACCESO[href];
-            return <Link key={href} href={href} className={`group flex items-center gap-3 rounded-xl border px-4 py-3 transition hover:brightness-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30 ${tono.fondo} ${tono.borde}`}>
-              <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tono.icono}`}><Icono className="size-[18px]" aria-hidden /></span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-texto">{titulo}</span><span className="mt-0.5 block text-xs text-gris">{t}</span></span>
-              <ArrowRight className={`size-4 shrink-0 transition group-hover:translate-x-0.5 ${tono.texto}`} aria-hidden />
+            return <Link key={href} href={href} style={{ '--acento': tono.acento } as React.CSSProperties} className={`group relative isolate flex items-center gap-3 overflow-hidden rounded-xl p-[3px] transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30 ${tono.marco}`}>
+              <span aria-hidden className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none">
+                <span className="aspect-square w-[200%] shrink-0 animate-none bg-[conic-gradient(transparent_0deg,transparent_220deg,var(--acento)_300deg,#fff_350deg,transparent_360deg)] group-hover:animate-[spin_2.5s_linear_infinite] motion-reduce:animate-none" />
+              </span>
+              <span aria-hidden className={`absolute inset-[3px] overflow-hidden rounded-[calc(0.75rem-3px)] ${tono.fondo}`}>
+                <span className="absolute -right-8 -top-8 size-24 scale-50 rounded-full bg-[var(--acento)] opacity-0 transition-all duration-500 ease-out group-hover:scale-100 group-hover:opacity-15 motion-reduce:transition-none" />
+                <span className="absolute inset-y-0 left-0 w-1/3 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/65 to-transparent transition-none group-hover:translate-x-[400%] group-hover:transition-transform group-hover:duration-700 group-hover:ease-out motion-reduce:group-hover:translate-x-[-100%]" />
+                <span className="absolute bottom-0 left-0 h-[3px] w-0 rounded-r-full bg-[var(--acento)] transition-all duration-500 ease-out group-hover:w-full motion-reduce:transition-none" />
+              </span>
+              <span className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-xl transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-6 motion-reduce:transition-none ${tono.icono} ${tono.texto}`}><Icono className="size-[18px]" aria-hidden /></span>
+              <span className="relative z-10 min-w-0 flex-1"><span className="block text-sm font-semibold text-texto">{titulo}</span><span className="mt-0.5 block text-xs text-gris">{t}</span></span>
+              <ArrowRight className={`relative z-10 size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none ${tono.texto}`} aria-hidden />
             </Link>;
           })}
         </div>

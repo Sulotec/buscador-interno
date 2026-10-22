@@ -54,6 +54,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
 });
 
+
 // Servidor de la oficina: la API corre como servicio de Windows, arranca con el equipo sin necesidad de iniciar
 // sesión y se reinicia sola si falla. Fuera de un servicio (consola, Docker, desarrollo) esta línea no hace nada.
 builder.Host.UseWindowsService(options => options.ServiceName = "BuscadorApi");
@@ -188,6 +189,9 @@ builder.Services.AddScoped<IFallecidosService, FallecidosService>();
 builder.Services.AddScoped<
     internal_search_backend.Business.Services.Buscador.personas.individual.IIndividualService,
     internal_search_backend.Business.Services.Buscador.personas.individual.IndividualService>();
+builder.Services.AddScoped<
+    internal_search_backend.Business.Services.Buscador.personas.individual.IPersonaPdfService,
+    internal_search_backend.Business.Services.Buscador.personas.individual.PersonaPdfService>();
 
 builder.Services.AddSingleton(
     builder.Configuration.GetSection("Reniec").Get<ReniecOptions>() ?? new ReniecOptions());

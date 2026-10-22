@@ -18,17 +18,20 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
         private const int CostoConsulta = 1;
 
         private readonly IIndividualService _buscadorService;
+        private readonly IPersonaPdfService _personaPdfService;
         private readonly IFallecidosService _fallecidosService;
         private readonly ITokenService _tokens;
         private readonly IReniecService _reniec;
 
         public BuscadorController(
             IIndividualService buscadorService,
+            IPersonaPdfService personaPdfService,
             IFallecidosService fallecidosService,
             ITokenService tokens,
             IReniecService reniec)
         {
             _buscadorService = buscadorService;
+            _personaPdfService = personaPdfService;
             _fallecidosService = fallecidosService;
             _tokens = tokens;
             _reniec = reniec;
@@ -54,6 +57,19 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
                 () => _reniec.ConsultarAsync(dni, ct));
 
             return Ok(resultado);
+        }
+
+        [HttpPost("exportar-pdf")]
+        [Produces("application/pdf")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ExportarPdf(
+            [FromBody] BuscadorHistorialResponse resultado,
+            CancellationToken ct)
+        {
+            var pdf = _personaPdfService.Generar(resultado);
+
+            return File(pdf, "application/pdf", $"ficha-{resultado.Documento}.pdf");
         }
 
         /// <summary>

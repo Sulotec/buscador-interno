@@ -27,14 +27,20 @@ export default function Empresas() {
 
   const buscar = useCallback(async (m: Modo, valor: string) => {
     setModo(m);
-    setError(''); setCargando(true);
+    setError('');
+    const limpio = m === 'ruc' ? valor.replace(/\D/g, '').slice(0, 11) : valor.trim();
+    if (m === 'ruc' && !/^20\d{9}$/.test(limpio)) {
+      setError('El RUC debe tener 11 dígitos y comenzar con 20.');
+      return;
+    }
+    setCargando(true);
     const guardarEmpresa = m === 'ruc' ? setEmpresaRuc : setEmpresaRazon;
     const guardarConsulta = m === 'ruc' ? setConsultaRuc : setConsultaRazon;
     const guardarSinDatos = m === 'ruc' ? setEmpresaRucSinDatos : setEmpresaRazonSinDatos;
-    guardarEmpresa(null); guardarSinDatos(false); guardarConsulta(valor);
-    if (m === 'ruc') setRuc(valor); else setRazon(valor);
+    guardarEmpresa(null); guardarSinDatos(false); guardarConsulta(limpio);
+    if (m === 'ruc') setRuc(limpio); else setRazon(limpio);
     try {
-      const r = m === 'ruc' ? await servicioEmpresas.porRuc(valor) : await servicioEmpresas.porRazonSocial(valor);
+      const r = m === 'ruc' ? await servicioEmpresas.porRuc(limpio) : await servicioEmpresas.porRazonSocial(limpio);
       if (!r) guardarSinDatos(true); else guardarEmpresa(r);
     } catch (e) {
       if (e instanceof ErrorApi && e.estado === 404) guardarSinDatos(true);
@@ -60,9 +66,11 @@ export default function Empresas() {
       <Encabezado titulo="Consulta de empresas" bajada="Busca por RUC o por razón social. Cada consulta queda registrada en la auditoría." />
       <div className="flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gris">¿Qué dato deseas consultar?</p>
-        <Pestanas<Modo> valor={modo} alCambiar={(m) => { setModo(m); setError(''); }}
+        <Pestanas<Modo> valor={modo} deshabilitadas={cargando}
+          alCambiar={(m) => { if (cargando) return; setModo(m); setError(''); }}
           opciones={[{ id: 'ruc', texto: 'RUC', icono: <Hash className="size-4" /> }, { id: 'razon', texto: 'Razón social', icono: <Building2 className="size-4" /> }]} />
       </div>
+      {cargando && <p role="status" className="-mt-4 text-xs font-medium text-azul">La consulta está en curso. Espera a que termine para cambiar el tipo de búsqueda.</p>}
 
       <Tarjeta>
         <div className="mb-4 flex items-center gap-3">
@@ -72,13 +80,14 @@ export default function Empresas() {
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-texto">{modo === 'ruc' ? 'Buscar por RUC' : 'Buscar por razón social'}</h2>
             <p className="mt-0.5 text-xs text-gris">
-              {modo === 'ruc' ? 'Ingresa el RUC de 11 dígitos de la empresa.' : 'Escribe el nombre de la empresa para encontrar sus registros.'}
+              {modo === 'ruc' ? 'Ingresa el RUC de 11 dígitos de la empresa (inicia con 20).' : 'Escribe el nombre de la empresa para encontrar sus registros.'}
             </p>
           </div>
         </div>
         {modo === 'ruc' ? (
-          <BarraBusqueda key="ruc" etiqueta="RUC" placeholder="RUC de 11 dígitos" valorInicial={ruc} alCambiarValor={setRuc} cargando={cargando}
-            validar={(v) => (/^(10|15|16|17|20)\d{9}$/.test(v) ? null : 'El RUC debe tener 11 dígitos y empezar con 10, 15, 16, 17 o 20.')}
+          <BarraBusqueda key="ruc" etiqueta="RUC" placeholder="RUC de 11 dígitos (comienza con 20)" valorInicial={ruc} alCambiarValor={setRuc} cargando={cargando}
+            longitudMaxima={11}
+            validar={(v) => (/^20\d{9}$/.test(v) ? null : 'El RUC debe tener 11 dígitos y comenzar con 20.')}
             alBuscar={(v) => buscar('ruc', v)} />
         ) : (
           <BarraBusqueda key="razon" etiqueta="Razón social" placeholder="Nombre de la empresa" valorInicial={razon} alCambiarValor={setRazon} numerica={false} cargando={cargando}

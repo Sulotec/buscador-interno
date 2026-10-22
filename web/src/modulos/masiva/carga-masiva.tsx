@@ -136,10 +136,11 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
       <Paso numero={1} titulo={`Agrega los ${etiqueta}`} descripcion="Pega una lista o carga un archivo .txt o .csv." icono={ClipboardPaste} hecho={analisis.validos.length > 0} activo={pasoActual === 1}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            <Pestanas<Fuente> valor={fuente} alCambiar={setFuente} opciones={[
+            <Pestanas<Fuente> valor={fuente} deshabilitadas={ocupado} alCambiar={(v) => { if (!ocupado) setFuente(v); }} opciones={[
             { id: 'pegar', texto: 'Pegar lista', icono: <ClipboardPaste className="size-4" /> },
             { id: 'archivo', texto: 'Subir archivo', icono: <FileUp className="size-4" /> },
             ]} />
+            {ocupado && <span role="status" className="text-xs font-medium text-azul">La carga está en curso; espera a que termine para cambiar la entrada.</span>}
             <span className="text-xs text-gris">{fuente === 'pegar' ? 'Un registro por línea o separados por comas' : 'TXT o CSV, hasta 5 MB'}</span>
           </div>
           <Boton type="button" variante="secundario" className="h-9 w-full sm:w-auto" onClick={() => guardarArchivo({ blob: plantilla(tipo), nombre: plantilla(tipo).name })}><FileDown className="size-4" />Descargar plantilla</Boton>
