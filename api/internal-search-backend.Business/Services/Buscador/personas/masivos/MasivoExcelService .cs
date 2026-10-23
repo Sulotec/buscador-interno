@@ -27,6 +27,9 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             if (secciones.Contains(SeccionesMasivo.LineasCredito))
                 CrearLineasCredito(workbook, resultado.LineasCredito);
 
+            if (secciones.Contains(SeccionesMasivo.Fallecidos))
+                CrearFallecidos(workbook, resultado.Fallecidos);
+
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             return stream.ToArray();
@@ -68,6 +71,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             AgregarConteo(SeccionesMasivo.Calificacion, "Registros de calificaciones", resultado.Calificaciones.Count);
             AgregarConteo(SeccionesMasivo.Deuda, "Registros de deudas", resultado.Deudas.Count);
             AgregarConteo(SeccionesMasivo.LineasCredito, "Registros de líneas de crédito", resultado.LineasCredito.Count);
+            AgregarConteo(SeccionesMasivo.Fallecidos, "Documentos con fallecimiento registrado", resultado.Fallecidos.Count);
 
             hoja.Columns().AdjustToContents();
         }
@@ -318,6 +322,48 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 hoja.Cell(fila, 9).Value = linea.LineaUtilizada;
                 //hoja.Cell(fila, 11).Value = linea.FechaCarga;
             }
+
+            FormatearHoja(hoja, headers.Length);
+        }
+
+        private void CrearFallecidos(
+            XLWorkbook workbook,
+            List<Fallecidos> datos)
+        {
+            var hoja = workbook.Worksheets.Add("Fallecidos");
+
+            var headers = new[]
+            {
+                "DNI",
+                "Apellido Paterno",
+                "Apellido Materno",
+                "Prenombres",
+                "Restricción",
+                "Fecha Nacimiento",
+                "Fecha Fallecimiento",
+            };
+
+            for (int i = 0; i < headers.Length; i++)
+            {
+                hoja.Cell(1, i + 1).Value = headers[i];
+            }
+
+            for (int i = 0; i < datos.Count; i++)
+            {
+                var fila = i + 2;
+                var f = datos[i];
+
+                hoja.Cell(fila, 1).Value = f.Dni;
+                hoja.Cell(fila, 2).Value = f.ApePat;
+                hoja.Cell(fila, 3).Value = f.ApeMat;
+                hoja.Cell(fila, 4).Value = f.Prenombres;
+                hoja.Cell(fila, 5).Value = f.DeRestriccion;
+                hoja.Cell(fila, 6).Value = f.FechaNacimiento;
+                hoja.Cell(fila, 7).Value = f.FechaFallecimiento;
+            }
+
+            hoja.Column(6).Style.DateFormat.Format = "dd/MM/yyyy";
+            hoja.Column(7).Style.DateFormat.Format = "dd/MM/yyyy";
 
             FormatearHoja(hoja, headers.Length);
         }
