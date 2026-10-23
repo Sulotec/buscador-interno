@@ -10,7 +10,7 @@ export interface UsuarioListado {
 export interface RolListado { codigoRol: number; rol: string; descripcion: string | null }
 
 export interface CrearUsuario {
-  nombres: string; apePat: string; apeMat?: string | null; usuarioLogin: string; correo: string;
+  nombres: string; apePat: string; apeMat?: string | null; usuarioLogin: string; correo?: string | null;
   dni?: string | null; telefono?: string | null; codRoles: number[]; tokensIniciales: number; clave?: string | null;
 }
 

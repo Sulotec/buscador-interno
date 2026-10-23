@@ -32,5 +32,7 @@ namespace internal_search.Domain.Interfaces.Usuario
 
         // Invalida todos los tokens ya emitidos para el usuario
         Task RevocarSesionesAsync(int codUsuario);
+        // Guarda un hash de contraseña nuevo (restablecimiento hecho por un ADMIN GENERAL)
+        Task<bool> ActualizarClaveAsync(int codUsuario, string hashClave, string usuarioActu);
     }
 }

@@ -16,6 +16,7 @@ export const servicioAdmin = {
   cambiarEstado: (codUsuario: number, activo: boolean) => api.put<void>(`system/usuarios/${codUsuario}/estado`, { activo }),
   cambiarRoles: (codUsuario: number, codRoles: number[]) => api.put<void>(`system/usuarios/${codUsuario}/roles`, { codRoles }),
   cerrarSesiones: (codUsuario: number) => api.post<void>(`system/usuarios/${codUsuario}/cerrar-sesiones`),
+  restablecerClave: (codUsuario: number, clave: string) => api.put<void>(`system/usuarios/${codUsuario}/clave`, { clave }),
   asignarTokens: (codUsuario: number, cantidad: number, motivo: string) =>
     api.post<SaldoTokens>('system/tokens/asignar', { codUsuario, cantidad, motivo }),
   movimientos: (codUsuario: number, top = 30) => api.get<MovimientoToken[]>(`system/tokens/${codUsuario}/movimientos?top=${top}`),

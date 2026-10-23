@@ -9,6 +9,11 @@ import { servicioAdmin } from './servicio';
 import type { MovimientoToken, RolListado, UsuarioListado } from './tipos';
 
 const mensaje = (e: unknown, porDefecto: string) => (e instanceof ErrorApi ? e.message : porDefecto);
+// Misma regla que la API (ValidadorClave): 8 o mas caracteres con mayusculas, minusculas y numeros.
+const problemaClave = (c: string) =>
+  c.length < 8 ? 'La contraseña debe tener al menos 8 caracteres.'
+    : !/[A-Z]/.test(c) || !/[a-z]/.test(c) || !/\d/.test(c) ? 'La contraseña debe incluir mayúsculas, minúsculas y números.'
+    : '';
 
 function SelectorRoles({ roles, elegidos, alCambiar }: { roles: RolListado[]; elegidos: number[]; alCambiar: (r: number[]) => void }) {
   return (
@@ -28,7 +33,7 @@ function SelectorRoles({ roles, elegidos, alCambiar }: { roles: RolListado[]; el
 }
 
 export function FormularioCrear({ roles, alTerminar }: { roles: RolListado[]; alTerminar: (mensaje: string) => void }) {
-  const [d, setD] = useState({ nombres: '', apePat: '', apeMat: '', usuarioLogin: '', correo: '', dni: '', telefono: '', tokensIniciales: '0' });
+  const [d, setD] = useState({ nombres: '', apePat: '', apeMat: '', usuarioLogin: '', correo: '', clave: '', dni: '', telefono: '', tokensIniciales: '0' });
   const [codRoles, setCodRoles] = useState<number[]>([]);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -36,18 +41,22 @@ export function FormularioCrear({ roles, alTerminar }: { roles: RolListado[]; al
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
-    if (!d.nombres.trim() || !d.apePat.trim() || !d.usuarioLogin.trim() || !d.correo.trim()) { setError('Completa nombres, apellido paterno, usuario y correo.'); return; }
+    if (!d.nombres.trim() || !d.apePat.trim() || !d.usuarioLogin.trim()) { setError('Completa nombres, apellido paterno y usuario.'); return; }
+    if (!d.correo.trim() && !d.clave) { setError('Pon un correo (recibe la invitación) o define una contraseña inicial.'); return; }
+    if (d.clave && problemaClave(d.clave)) { setError(problemaClave(d.clave)); return; }
     if (!codRoles.length) { setError('Elige al menos un rol.'); return; }
     setCargando(true); setError('');
     try {
       const r = await servicioAdmin.crear({
         nombres: d.nombres.trim(), apePat: d.apePat.trim(), apeMat: d.apeMat.trim() || null, usuarioLogin: d.usuarioLogin.trim(),
-        correo: d.correo.trim(), dni: d.dni.trim() || null, telefono: d.telefono.trim() || null, codRoles,
+        correo: d.correo.trim() || null, clave: d.clave || null, dni: d.dni.trim() || null, telefono: d.telefono.trim() || null, codRoles,
         tokensIniciales: Math.max(0, Number(d.tokensIniciales) || 0),
       });
-      alTerminar(r.invitacionEnviada
-        ? `Se creó ${r.usuarioLogin} y se le envió la invitación por correo.`
-        : `Se creó ${r.usuarioLogin}. No se pudo enviar el correo de invitación: el sistema aún no tiene correo configurado.`);
+      alTerminar(d.clave
+        ? `Se creó ${r.usuarioLogin} con la contraseña que definiste. Entrégasela por un canal seguro.`
+        : r.invitacionEnviada
+          ? `Se creó ${r.usuarioLogin} y se le envió la invitación por correo.`
+          : `Se creó ${r.usuarioLogin}. No se pudo enviar el correo de invitación: el sistema aún no tiene correo configurado.`);
     } catch (err) {
       setError(mensaje(err, 'No se pudo crear el usuario.'));
     } finally {
@@ -65,7 +74,8 @@ export function FormularioCrear({ roles, alTerminar }: { roles: RolListado[]; al
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Usuario" ayuda="Con este nombre inicia sesión." {...campo('usuarioLogin')} />
-        <Campo etiqueta="Correo" type="email" ayuda="Aquí llega la invitación." {...campo('correo')} />
+        <Campo etiqueta="Correo (opcional)" type="email" ayuda="Si lo pones, recibe la invitación y puede recuperar su clave." {...campo('correo')} />
+        <Campo etiqueta="Contraseña inicial (opcional si hay correo)" type="password" autoComplete="new-password" ayuda="8 o más caracteres, con mayúsculas, minúsculas y números." {...campo('clave')} />
         <Campo etiqueta="DNI (opcional)" inputMode="numeric" {...campo('dni')} />
         <Campo etiqueta="Teléfono (opcional)" inputMode="tel" {...campo('telefono')} />
       </div>
@@ -75,6 +85,36 @@ export function FormularioCrear({ roles, alTerminar }: { roles: RolListado[]; al
       </div>
       <Campo etiqueta="Tokens iniciales" type="number" min={0} className="max-w-48" {...campo('tokensIniciales')} />
       <div className="flex justify-end"><Boton type="submit" cargando={cargando}>Crear usuario</Boton></div>
+    </form>
+  );
+}
+
+export function FormularioClave({ usuario, alTerminar }: { usuario: UsuarioListado; alTerminar: (mensaje: string) => void }) {
+  const [clave, setClave] = useState('');
+  const [repetida, setRepetida] = useState('');
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    const problema = problemaClave(clave);
+    if (problema) { setError(problema); return; }
+    if (clave !== repetida) { setError('Las dos contraseñas no coinciden.'); return; }
+    setCargando(true); setError('');
+    try { await servicioAdmin.restablecerClave(usuario.id, clave); alTerminar(`Se cambió la contraseña de ${usuario.usuario} y se cerraron sus sesiones. Entrégasela por un canal seguro.`); }
+    catch (err) { setError(mensaje(err, 'No se pudo cambiar la contraseña.')); }
+    finally { setCargando(false); }
+  }
+
+  return (
+    <form onSubmit={guardar} className="space-y-4" noValidate>
+      {error && <Aviso tono="error">{error}</Aviso>}
+      <p className="text-sm text-gris">La persona entra con su usuario <strong className="text-texto">{usuario.usuario}</strong> y esta contraseña. Sus sesiones abiertas se cierran.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Contraseña nueva" type="password" name="clave" autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} ayuda="8 o más caracteres, con mayúsculas, minúsculas y números." />
+        <Campo etiqueta="Repetir contraseña" type="password" name="repetida" autoComplete="new-password" value={repetida} onChange={(e) => setRepetida(e.target.value)} />
+      </div>
+      <div className="flex justify-end"><Boton type="submit" cargando={cargando}>Guardar contraseña</Boton></div>
     </form>
   );
 }
