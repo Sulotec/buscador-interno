@@ -11,6 +11,20 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
     {
         private readonly AppDbContext _context;
 
+        private static async Task<List<string>> ObtenerUltimosPeriodosAsync(IQueryable<string?> periodos)
+        {
+            var disponibles = await periodos
+                .Where(periodo => periodo != null)
+                .Distinct()
+                .ToListAsync();
+
+            if (disponibles.Count == 0)
+                return new List<string>();
+
+            var ultimo = disponibles.Max(periodo => periodo!);
+            return disponibles.Where(periodo => periodo == ultimo).Select(periodo => periodo!).ToList();
+        }
+
         public IndividualRepository(AppDbContext context)
         {
             _context = context;
