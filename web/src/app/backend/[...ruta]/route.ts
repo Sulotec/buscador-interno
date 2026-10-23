@@ -2,6 +2,8 @@
 // - El navegador llama a /backend/api/... y /backend/system/...; nunca conoce la direccion de la API.
 // - Agrega el token (cookie httpOnly) y la IP real de la persona.
 // - Aplica la regla de sedes: fuera de las sedes solo trabaja el rol ADMIN GENERAL.
+// - Administracion (usuarios, tokens de otros, auditoria): solo ADMIN GENERAL. La API ya lo exige; aqui se corta antes
+//   para que un SUPERVISOR u otro rol de consulta ni siquiera llegue a esas rutas (decision del usuario, 2026-10-22).
 // - Si la API esta detras de Cloudflare Access, se presenta con su token de servicio.
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -18,6 +20,10 @@ export const dynamic = 'force-dynamic';
 
 const API_URL = (process.env.BUSCADOR_API_URL ?? '').replace(/\/$/, '');
 const RUTAS_PUBLICAS = new Set(['system/auth/login', 'system/auth/forgot-password', 'system/auth/reset-password']);
+// Rutas de administracion: cualquier rol que no sea ADMIN GENERAL recibe 403 sin tocar la API.
+// 'system/tokens/mi-saldo' queda fuera a proposito: cada persona ve su propio saldo.
+const SOLO_ADMIN = /^system\/(usuarios|auditoria)(\/|$)|^system\/tokens\/(?!mi-saldo$)/;
+const MENSAJE_SOLO_ADMIN = 'Esta sección es solo para Administradores Generales.';
 const CABECERAS_DE_VUELTA = ['content-type', 'content-disposition', 'content-length', 'cache-control'];
 
 type Contexto = { params: Promise<{ ruta: string[] }> };
@@ -43,8 +49,12 @@ async function reenviar(req: NextRequest, { params }: Contexto) {
 
   if (!publica) {
     if (!token) return sinSesion(json({ message: 'Tu sesión terminó. Vuelve a iniciar sesión.' }, 401));
-    if (!esAdminGeneral(rolesDelToken(token)) && !enSede(ip)) {
+    const roles = rolesDelToken(token);
+    if (!esAdminGeneral(roles) && !enSede(ip)) {
       return json({ message: MENSAJE_FUERA_DE_SEDE, fueraDeSede: true }, 403);
+    }
+    if (!esAdminGeneral(roles) && SOLO_ADMIN.test(camino)) {
+      return json({ message: MENSAJE_SOLO_ADMIN }, 403);
     }
   }
 

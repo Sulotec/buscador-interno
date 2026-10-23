@@ -79,6 +79,17 @@ dotnet run
   - Quien trabaja aquí no tiene acceso al servidor.
 - **api/:** el servidor de la oficina se actualiza solo desde `main` con `api/deploy/windows/actualizar.ps1`. Lee la sección "Mover el actualizador a este repositorio" de `api/DESPLIEGUE.md`.
 
+## Roles
+
+| Rol | Puede | No puede |
+|---|---|---|
+| **ADMIN GENERAL** | Todo: consultas ilimitadas (no gastan tokens), usuarios y roles, asignar tokens, auditoría. Entra desde cualquier lugar. | — |
+| **SUPERVISOR** | Consultas de personas y empresas (individual y masiva), su historial de cargas y su propio saldo. Solo desde las sedes. | Crear o editar usuarios, asignar tokens, ver la auditoría (prohibido: la API responde 403 y la web ni muestra ni reenvía esas rutas). |
+| **GERENCIA** | Reservado: hoy igual que SUPERVISOR. | Igual que SUPERVISOR. |
+| **Operador** | Lo que tenga asignado en `RRCC.RolMenu` (`database/004_menu_operador.sql`). | Administración. |
+
+Dónde se hace cumplir: la API con la política `AdminGeneral` (`system/usuarios`, `system/auditoria`, `system/tokens` salvo `mi-saldo`); la web en `src/app/backend/[...ruta]/route.ts` (corta esas rutas para quien no es ADMIN GENERAL) y en las páginas de administración (`SoloAdmin`). Las descripciones de los roles en la base se actualizan con `database/005_rol_supervisor.sql`.
+
 ## Reglas del equipo
 
 1. **Trabaja en una rama** (`git checkout -b mejora/lo-que-haces`) y abre un *pull request* hacia `main`. Que otra persona lo revise antes de unirlo: `main` es producción.
