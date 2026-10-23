@@ -41,6 +41,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 .Concat(result.Calificaciones.Select(x => x.Documento))
                 .Concat(result.Deudas.Select(x => x.Documento))
                 .Concat(result.LineasCredito.Select(x => x.Documento))
+                .Concat(result.Fallecidos.Select(x => x.Dni))
                 .ToHashSet();
 
             result.DnisSinResultados = validos.Where(d => !encontrados.Contains(d)).ToList();

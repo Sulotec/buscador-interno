@@ -64,4 +64,8 @@ export const SECCIONES = [
   { id: 'deuda', nombre: 'Deudas', detalle: 'Entidades, saldos y períodos.' },
   { id: 'lineas-credito', nombre: 'Líneas de crédito', detalle: 'Montos utilizados y disponibles.' },
   { id: 'calificacion', nombre: 'Calificaciones', detalle: 'Clasificación crediticia reportada.' },
+  { id: 'fallecidos', nombre: 'Fallecidos', detalle: 'Documentos con fecha de fallecimiento registrada.', solo: 'personas' as TipoLista },
 ];
+
+// Secciones disponibles segun el tipo de lista: fallecidos solo aplica a personas (DNI), no a empresas (RUC).
+export const seccionesDe = (tipo: TipoLista) => SECCIONES.filter((s) => !('solo' in s) || s.solo === tipo);

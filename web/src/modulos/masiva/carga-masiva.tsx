@@ -1,13 +1,13 @@
 'use client';
 // Carga masiva (personas o empresas): 1) secciones, 2) documentos, 3) procesar y descargar el Excel.
 import clsx from 'clsx';
-import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileDown, FileSpreadsheet, FileUp, Gauge, Loader2, Phone, Play, ShieldCheck, Sparkles } from 'lucide-react';
+import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileDown, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Aviso, Boton, Chip, Pestanas, Tarjeta } from '@/components/ui';
 import { ErrorApi, guardarArchivo } from '@/lib/api';
 import { fNumero } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { LIMITE_DOCUMENTOS, SECCIONES, TAMANO_MAXIMO, analizar, crearArchivo, plantilla, type TipoLista } from './documentos';
+import { LIMITE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, plantilla, seccionesDe, type TipoLista } from './documentos';
 import { HistorialDescargas } from './historial';
 import { servicioMasiva } from './servicio';
 import { useEstadoCarga } from './estado';
@@ -37,6 +37,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const { usuario, actualizarSaldo } = useSesion();
   const { estado, actualizar } = useEstadoCarga(tipo);
   const { secciones, fuente, texto, nombreArchivo, fase, error } = estado;
+  const SECCIONES = seccionesDe(tipo);
   const setSecciones = (valor: string[]) => actualizar({ secciones: valor });
   const setFuente = (valor: Fuente) => actualizar({ fuente: valor });
   const setTexto = (valor: string) => actualizar({ texto: valor });
@@ -193,7 +194,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
         <div className="grid gap-2.5 sm:grid-cols-2">
           {SECCIONES.map((s) => {
             const marcada = secciones.includes(s.id);
-            const iconos = { moviles: Phone, sueldos: BriefcaseBusiness, deuda: Banknote, 'lineas-credito': CreditCard, calificacion: Gauge };
+            const iconos = { moviles: Phone, sueldos: BriefcaseBusiness, deuda: Banknote, 'lineas-credito': CreditCard, calificacion: Gauge, fallecidos: HeartCrack };
             const IconoSeccion = iconos[s.id as keyof typeof iconos] ?? Database;
             return (
               <label key={s.id} className={clsx('flex min-h-16 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-azul/20', marcada ? 'border-azul-25 bg-azul-10/60 text-texto' : 'border-borde bg-white text-texto hover:bg-fondo/60')}>

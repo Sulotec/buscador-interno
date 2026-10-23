@@ -17,5 +17,6 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
         public List<Calificacion> Calificaciones { get; set; } = new();
         public List<Deuda> Deudas { get; set; } = new();
         public List<LineaCredito> LineasCredito { get; set; } = new();
+        public List<Fallecidos> Fallecidos { get; set; } = new();
     }
 }

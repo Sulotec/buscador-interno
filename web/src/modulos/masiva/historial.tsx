@@ -16,6 +16,7 @@ const colorSeccion: Record<string, string> = {
   deuda: 'bg-[#f9eaf0] text-[#9b4c68]',
   'lineas-credito': 'bg-[#eeeafa] text-[#6555a0]',
   calificacion: 'bg-[#e8f3ef] text-[#3d7768]',
+  fallecidos: 'bg-[#fbeaea] text-[#9b3b3b]',
 };
 
 export function HistorialDescargas({ items, cargando }: { items: HistorialDescarga[] | null; cargando: boolean }) {
