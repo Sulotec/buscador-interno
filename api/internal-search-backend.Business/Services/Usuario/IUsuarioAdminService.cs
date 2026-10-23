@@ -13,5 +13,6 @@ namespace internal_search_backend.Business.Services.Usuario
         Task CambiarEstadoAsync(int codUsuario, bool activo, ContextoAccion admin);
         Task CerrarSesionesAsync(int codUsuario, ContextoAccion admin);
         Task CambiarRolesAsync(int codUsuario, IEnumerable<int> codRoles, ContextoAccion admin);
+        Task RestablecerClaveAsync(int codUsuario, string nuevaClave, ContextoAccion admin);
     }
 }

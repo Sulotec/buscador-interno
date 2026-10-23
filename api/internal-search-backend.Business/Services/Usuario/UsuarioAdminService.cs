@@ -37,8 +37,12 @@ namespace internal_search_backend.Business.Services.Usuario
         public async Task<CrearUsuarioResponseDto> CrearAsync(CrearUsuarioDto dto, ContextoAccion admin)
         {
             var login = dto.UsuarioLogin.Trim();
-            var correo = dto.Correo.Trim();
+            var correo = string.IsNullOrWhiteSpace(dto.Correo) ? null : dto.Correo.Trim();
             var conClaveInicial = !string.IsNullOrEmpty(dto.Clave);
+
+            // Sin correo no hay invitación ni recuperación: la cuenta tiene que nacer con contraseña
+            if (correo == null && !conClaveInicial)
+                throw new ArgumentException("Sin correo, define una contraseña inicial para la cuenta.");
 
             if (conClaveInicial)
             {
@@ -50,7 +54,7 @@ namespace internal_search_backend.Business.Services.Usuario
             if (await _usuarioRepository.ExisteLoginAsync(login))
                 throw new InvalidOperationException("El usuario ya existe.");
 
-            if (await _usuarioRepository.ExisteCorreoAsync(correo))
+            if (correo != null && await _usuarioRepository.ExisteCorreoAsync(correo))
                 throw new InvalidOperationException("El correo ya está registrado.");
 
             var rolesValidos = await _usuarioRepository.ObtenerRolesActivosAsync(dto.CodRoles);
@@ -92,7 +96,7 @@ namespace internal_search_backend.Business.Services.Usuario
             await _auditoria.RegistrarAsync(admin, "USUARIO_CREADO", "Usuario", codUsuario.ToString(),
                 $"{login}; roles [{string.Join(",", rolesValidos)}]; tokens iniciales {(esAdminGeneral ? "ilimitados" : dto.TokensIniciales.ToString())}");
 
-            var invitacionEnviada = !conClaveInicial &&
+            var invitacionEnviada = !conClaveInicial && correo != null &&
                 await _recuperacion.EnviarInvitacionAsync(usuario, admin.Ip);
 
             return new CrearUsuarioResponseDto
@@ -126,6 +130,22 @@ namespace internal_search_backend.Business.Services.Usuario
 
             await _auditoria.RegistrarAsync(admin, activo ? "USUARIO_ACTIVADO" : "USUARIO_DESACTIVADO",
                 "Usuario", codUsuario.ToString());
+        }
+
+        // Un ADMIN GENERAL define una contraseña nueva (cuentas sin correo, o cuando la persona no puede recuperarla).
+        // Se cierran las sesiones abiertas de esa cuenta.
+        public async Task RestablecerClaveAsync(int codUsuario, string nuevaClave, ContextoAccion admin)
+        {
+            var error = ValidadorClave.Validar(nuevaClave);
+            if (error != null)
+                throw new ArgumentException(error);
+
+            _ = await _usuarioRepository.ObtenerContextoSesionAsync(codUsuario)
+                ?? throw new ArgumentException("El usuario no existe.");
+
+            await _usuarioRepository.ActualizarClaveAsync(codUsuario, _contrasena.Hashear(nuevaClave), Corto(admin.Login));
+            await _usuarioRepository.RevocarSesionesAsync(codUsuario);
+            await _auditoria.RegistrarAsync(admin, "USUARIO_CLAVE_RESTABLECIDA", "Usuario", codUsuario.ToString());
         }
 
         // Útil si se sospecha que un token fue robado o el equipo se perdió

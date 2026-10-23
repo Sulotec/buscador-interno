@@ -17,9 +17,10 @@ namespace internal_search.Domain.DTOs.Usuario
         [RegularExpression(@"^[A-Za-z0-9._-]+$", ErrorMessage = "El usuario solo admite letras, números, punto, guion y guion bajo.")]
         public string UsuarioLogin { get; set; } = string.Empty;
 
-        // Obligatorio: es el canal de invitación y recuperación
-        [Required, EmailAddress, MaxLength(150)]
-        public string Correo { get; set; } = string.Empty;
+        // Opcional desde el 2026-10-23: sin correo la cuenta debe nacer con una contraseña inicial (Clave) y no puede
+        // usar "¿Olvidaste tu contraseña?"; un ADMIN GENERAL le define una nueva cuando haga falta.
+        [EmailAddress, MaxLength(150)]
+        public string? Correo { get; set; }
 
         [MaxLength(150)]
         public string? Dni { get; set; }

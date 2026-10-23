@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Aviso, Boton, Chip, Encabezado, Modal, Paginacion, Tabla, Tarjeta, type Columna } from '@/components/ui';
 import { ErrorApi } from '@/lib/api';
 import { fNumero } from '@/lib/formato';
-import { FormularioCrear, FormularioRoles, FormularioTokens } from './formularios';
+import { FormularioClave, FormularioCrear, FormularioRoles, FormularioTokens } from './formularios';
 import { servicioAdmin } from './servicio';
 import type { Pagina, RolListado, UsuarioListado } from './tipos';
 
-type Dialogo = { tipo: 'crear' } | { tipo: 'roles' | 'tokens'; usuario: UsuarioListado } | null;
+type Dialogo = { tipo: 'crear' } | { tipo: 'roles' | 'tokens' | 'clave'; usuario: UsuarioListado } | null;
 
 export function AdminUsuarios() {
   const [texto, setTexto] = useState('');
@@ -55,6 +55,7 @@ export function AdminUsuarios() {
         <div className="flex min-w-max justify-end gap-1.5">
           <Boton variante="secundario" className="h-9 px-2.5 text-xs" title="Administrar roles" onClick={() => setDialogo({ tipo: 'roles', usuario: u })}><ShieldCheck className="size-4" /><span className="hidden xl:inline">Roles</span></Boton>
           <Boton variante="secundario" className="h-9 px-2.5 text-xs" title="Administrar tokens" onClick={() => setDialogo({ tipo: 'tokens', usuario: u })}><Coins className="size-4" /><span className="hidden xl:inline">Tokens</span></Boton>
+          <Boton variante="secundario" className="h-9 px-2.5 text-xs" title="Definir contraseña nueva" onClick={() => setDialogo({ tipo: 'clave', usuario: u })}><KeyRound className="size-4" /><span className="hidden xl:inline">Clave</span></Boton>
           <Boton variante="fantasma" className="h-9 px-2" title="Cerrar sus sesiones" aria-label={`Cerrar sesiones de ${u.usuario}`} cargando={ocupado === u.id}
             onClick={() => accion(u, () => servicioAdmin.cerrarSesiones(u.id), `Se cerraron las sesiones de ${u.usuario}.`)}><LogOut className="size-4" /></Boton>
           <Boton variante={u.estado === 1 ? 'peligro' : 'secundario'} className="h-9 px-3 text-xs"
@@ -109,7 +110,10 @@ export function AdminUsuarios() {
       <Modal abierto={dialogo?.tipo === 'tokens'} titulo={dialogo?.tipo === 'tokens' ? `Tokens de ${dialogo.usuario.usuario}` : ''} alCerrar={() => setDialogo(null)} ancho="max-w-2xl">
         {dialogo?.tipo === 'tokens' && <FormularioTokens usuario={dialogo.usuario} alTerminar={terminar} />}
       </Modal>
-      <p className="mt-4 flex items-center gap-2 text-xs text-gris"><KeyRound className="size-3.5" />Las contraseñas nunca se ven aquí: cada persona crea la suya con el enlace que recibe por correo.</p>
+      <Modal abierto={dialogo?.tipo === 'clave'} titulo={dialogo?.tipo === 'clave' ? `Contraseña de ${dialogo.usuario.usuario}` : ''} alCerrar={() => setDialogo(null)}>
+        {dialogo?.tipo === 'clave' && <FormularioClave usuario={dialogo.usuario} alTerminar={terminar} />}
+      </Modal>
+      <p className="mt-4 flex items-center gap-2 text-xs text-gris"><KeyRound className="size-3.5" />Las contraseñas no se ven aquí: cada persona crea la suya con el enlace del correo, o un administrador le define una con «Clave».</p>
     </>
   );
 }

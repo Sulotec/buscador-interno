@@ -55,6 +55,15 @@ namespace internal_search_backend.Controllers.Usuarios
                 return NoContent();
             });
 
+        // Contraseña nueva definida por el administrador (cuentas sin correo); cierra las sesiones de esa cuenta
+        [HttpPut("{codUsuario:int}/clave")]
+        public Task<IActionResult> RestablecerClave(int codUsuario, RestablecerClaveDto request) =>
+            Ejecutar(async () =>
+            {
+                await _usuarioAdminService.RestablecerClaveAsync(codUsuario, request.Clave, this.Contexto());
+                return NoContent();
+            });
+
         [HttpPut("{codUsuario:int}/roles")]
         public Task<IActionResult> CambiarRoles(int codUsuario, CambiarRolesDto request) =>
             Ejecutar(async () =>

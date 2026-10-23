@@ -183,6 +183,17 @@ namespace internal_search_backend.Infraestructure.Repositories.Usurio
             return filas > 0;
         }
 
+        public async Task<bool> ActualizarClaveAsync(int codUsuario, string hashClave, string usuarioActu)
+        {
+            var filas = await _context.Usuarios
+                .Where(u => u.CodUsuario == codUsuario)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(u => u.Clave, hashClave)
+                    .SetProperty(u => u.UsuActu, usuarioActu)
+                    .SetProperty(u => u.FechaActu, DateTime.Now));
+            return filas > 0;
+        }
+
         public async Task ReemplazarRolesAsync(int codUsuario, IEnumerable<int> codRoles, string usuarioActu)
         {
             var nuevos = codRoles.Distinct().ToHashSet();
