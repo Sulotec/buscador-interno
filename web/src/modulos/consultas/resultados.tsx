@@ -277,27 +277,62 @@ export function Resumen({ s }: { s: Secciones }) {
   );
 }
 
+// En pantalla cada seccion muestra solo su ultimo periodo (pedido del usuario, 2026-10-22); con "Ver todos los periodos"
+// se despliega el historial completo. El PDF se genera con el resultado entero, asi que siempre lleva todos los periodos.
+function soloUltimoPeriodo<T>(filas: T[], periodoDe: (f: T) => string): T[] {
+  const ultimo = filas.reduce((m, f) => (periodoDe(f) > m ? periodoDe(f) : m), '');
+  return ultimo ? filas.filter((f) => periodoDe(f) === ultimo) : filas;
+}
+const periodoTipado = (f: { periodo?: string | null }) => f.periodo ?? '';
+const periodoLibre = (f: Record<string, unknown>) => String(f.periodo ?? '');
+
 export function SeccionesResultado({ s, tipadas = true }: { s: Secciones; tipadas?: boolean }) {
+  const [verTodo, setVerTodo] = useState(false);
+  useEffect(() => { setVerTodo(false); }, [s]);
+
+  const deudas = verTodo ? s.deudas : soloUltimoPeriodo(s.deudas, periodoTipado);
+  const lineas = verTodo ? s.lineasCredito : soloUltimoPeriodo(s.lineasCredito, periodoTipado);
+  const calificaciones = verTodo ? s.calificaciones : soloUltimoPeriodo(s.calificaciones, periodoTipado);
+  const sueldosTipados = verTodo ? (s.sueldos as Sueldo[]) : soloUltimoPeriodo(s.sueldos as Sueldo[], periodoTipado);
+  const sueldosLibres = verTodo ? (s.sueldos as Record<string, unknown>[]) : soloUltimoPeriodo(s.sueldos as Record<string, unknown>[], periodoLibre);
+  const movilesTipados = verTodo ? (s.moviles as Movil[]) : soloUltimoPeriodo(s.moviles as Movil[], periodoTipado);
+  const movilesLibres = verTodo ? (s.moviles as Record<string, unknown>[]) : soloUltimoPeriodo(s.moviles as Record<string, unknown>[], periodoLibre);
+  const totalRegistros = s.deudas.length + s.lineasCredito.length + s.calificaciones.length + s.sueldos.length + s.moviles.length;
+  const visibles = deudas.length + lineas.length + calificaciones.length + (tipadas ? sueldosTipados.length + movilesTipados.length : sueldosLibres.length + movilesLibres.length);
+  const hayMas = totalRegistros > visibles;
+
   return (
     <div className="space-y-4">
-      <Seccion titulo="Deudas" icono={<Banknote className="size-[18px]" />} cantidad={s.deudas.length}>
-        <Tabla columnas={colDeudas} filas={s.deudas} clave={(d, i) => `${d.periodo}-${d.codigoSbs}-${i}`} vacio="No registra deudas." />
+      {(hayMas || verTodo) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-borde bg-fondo px-4 py-2.5 text-sm text-gris">
+          <span>
+            {verTodo
+              ? 'Mostrando todos los periodos.'
+              : 'Mostrando solo el último periodo de cada sección. El PDF incluye todos los periodos.'}
+          </span>
+          <button type="button" className="font-semibold text-azul hover:underline" onClick={() => setVerTodo((v) => !v)}>
+            {verTodo ? 'Ver solo el último periodo' : `Ver todos los periodos (${fNumero(totalRegistros)} registros)`}
+          </button>
+        </div>
+      )}
+      <Seccion titulo="Deudas" icono={<Banknote className="size-[18px]" />} cantidad={deudas.length}>
+        <Tabla columnas={colDeudas} filas={deudas} clave={(d, i) => `${d.periodo}-${d.codigoSbs}-${i}`} vacio="No registra deudas." />
       </Seccion>
-      <Seccion titulo="Líneas de crédito" icono={<CreditCard className="size-[18px]" />} cantidad={s.lineasCredito.length}>
-        <Tabla columnas={colLineas} filas={s.lineasCredito} clave={(l, i) => `${l.periodo}-${i}`} vacio="No registra líneas de crédito." />
+      <Seccion titulo="Líneas de crédito" icono={<CreditCard className="size-[18px]" />} cantidad={lineas.length}>
+        <Tabla columnas={colLineas} filas={lineas} clave={(l, i) => `${l.periodo}-${i}`} vacio="No registra líneas de crédito." />
       </Seccion>
-      <Seccion titulo="Calificaciones" icono={<Gauge className="size-[18px]" />} cantidad={s.calificaciones.length}>
-        <Tabla columnas={colCalificaciones} filas={s.calificaciones} clave={(c, i) => `${c.periodo}-${i}`} vacio="No registra calificaciones." />
+      <Seccion titulo="Calificaciones" icono={<Gauge className="size-[18px]" />} cantidad={calificaciones.length}>
+        <Tabla columnas={colCalificaciones} filas={calificaciones} clave={(c, i) => `${c.periodo}-${i}`} vacio="No registra calificaciones." />
       </Seccion>
-      <Seccion titulo="Información laboral" icono={<Briefcase className="size-[18px]" />} cantidad={s.sueldos.length}>
+      <Seccion titulo="Información laboral" icono={<Briefcase className="size-[18px]" />} cantidad={tipadas ? sueldosTipados.length : sueldosLibres.length}>
         {tipadas
-          ? <Tabla columnas={colSueldos} filas={s.sueldos as Sueldo[]} clave={(x, i) => `${x.periodo}-${i}`} vacio="No registra información laboral." />
-          : <Tabla columnas={columnasLibres(s.sueldos as Record<string, unknown>[])} filas={s.sueldos as Record<string, unknown>[]} clave={(_, i) => i} vacio="No registra información laboral." />}
+          ? <Tabla columnas={colSueldos} filas={sueldosTipados} clave={(x, i) => `${x.periodo}-${i}`} vacio="No registra información laboral." />
+          : <Tabla columnas={columnasLibres(sueldosLibres)} filas={sueldosLibres} clave={(_, i) => i} vacio="No registra información laboral." />}
       </Seccion>
-      <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={s.moviles.length}>
+      <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={tipadas ? movilesTipados.length : movilesLibres.length}>
         {tipadas
-          ? <Tabla columnas={colMoviles} filas={s.moviles as Movil[]} clave={(m, i) => `${m.telefono}-${i}`} vacio="No registra teléfonos." />
-          : <Tabla columnas={columnasLibres(s.moviles as Record<string, unknown>[])} filas={s.moviles as Record<string, unknown>[]} clave={(_, i) => i} vacio="No registra teléfonos." />}
+          ? <Tabla columnas={colMoviles} filas={movilesTipados} clave={(m, i) => `${m.telefono}-${i}`} vacio="No registra teléfonos." />
+          : <Tabla columnas={columnasLibres(movilesLibres)} filas={movilesLibres} clave={(_, i) => i} vacio="No registra teléfonos." />}
       </Seccion>
     </div>
   );

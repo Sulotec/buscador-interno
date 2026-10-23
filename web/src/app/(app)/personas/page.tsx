@@ -16,6 +16,9 @@ import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato
 import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre } from '@/modulos/personas/tipos';
 
 type Modo = 'documento' | 'telefono' | 'nombres' | 'fallecidos';
+// La busqueda por apellidos y nombres aun no esta terminada: la pestana se muestra como "en construccion" y no llama a la API.
+// Cuando el equipo la de por lista, basta con poner true (el formulario y los resultados ya estan hechos).
+const BUSQUEDA_NOMBRES_DISPONIBLE = false;
 
 const columnasFallecidos = [
   { titulo: 'DNI', celda: (r: RegistroFallecido) => <span className="numeros font-semibold">{fTexto(r.dni)}</span> },
@@ -328,7 +331,12 @@ export default function Personas() {
             longitudMaxima={9}
             validar={(v) => (/^\d{9}$/.test(v) ? null : 'El teléfono debe tener 9 dígitos.')} alBuscar={buscarTelefono} />
         )}
-        {modo === 'nombres' && (
+        {modo === 'nombres' && !BUSQUEDA_NOMBRES_DISPONIBLE && (
+          <Vacio icono={<UserSearch className="size-5" />} titulo="Estamos trabajando en esta búsqueda">
+            La consulta por apellidos y nombres estará disponible pronto. Mientras tanto, busca por documento o por teléfono.
+          </Vacio>
+        )}
+        {modo === 'nombres' && BUSQUEDA_NOMBRES_DISPONIBLE && (
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.3fr_auto] lg:items-end" onSubmit={(e) => { e.preventDefault(); void buscarPorNombres(); }}>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-texto">
@@ -612,7 +620,7 @@ export default function Personas() {
           Verás los registros asociados al número consultado.
         </Vacio>
       )}
-      {!cargando && !error && modo === 'nombres' && !resultadosNombres && (
+      {!cargando && !error && modo === 'nombres' && BUSQUEDA_NOMBRES_DISPONIBLE && !resultadosNombres && (
         <Vacio icono={<UserRound className="size-5" />} titulo="Escribe un nombre y apellido para empezar">
           Ingresa al menos el apellido paterno. Puedes añadir el apellido materno y los nombres para afinar la búsqueda.
         </Vacio>
