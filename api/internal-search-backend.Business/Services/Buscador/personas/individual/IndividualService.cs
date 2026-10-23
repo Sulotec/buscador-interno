@@ -53,6 +53,10 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             respuesta.Calificaciones = calificaciones;
             respuesta.Sueldos = sueldos;
             respuesta.Moviles = moviles;
+            // "Figura en las fuentes consultadas" = aparece en al menos una tabla. Antes nunca se asignaba (siempre false)
+            // y la web mostraba el aviso "El DNI no figura como válido" para todo el mundo, incluso con deudas y nombre.
+            respuesta.EsDniValido = deudas.Count > 0 || lineasCredito.Count > 0 || calificaciones.Count > 0
+                || sueldos.Count > 0 || moviles.Count > 0;
 
             return respuesta;
         }
