@@ -65,6 +65,14 @@ namespace internal_search_backend.Infraestructure.Reniec
                 if (response.StatusCode == HttpStatusCode.NotFound || codigo == "data_not_found")
                     return new ReniecResponse { Dni = dni, Encontrado = false };
 
+                // Cupo diario del plan agotado (el proveedor responde 429 / daily_limit_reached): se dice claro,
+                // porque no es una falla del Buscador y se renueva solo al dia siguiente.
+                if (response.StatusCode == HttpStatusCode.TooManyRequests || codigo == "daily_limit_reached")
+                {
+                    _logger.LogWarning("RENIEC: cupo diario del plan agotado (status {Status}, code {Code}).", (int)response.StatusCode, codigo);
+                    throw new ReniecNoDisponibleException("Se agotó el cupo diario de consultas RENIEC del plan del proveedor; se renueva cada día. Vuelve a intentarlo mañana.");
+                }
+
                 if (!response.IsSuccessStatusCode || json is null || json["success"]?.GetValue<bool>() == false)
                 {
                     // No se registra el cuerpo completo: puede contener datos personales
