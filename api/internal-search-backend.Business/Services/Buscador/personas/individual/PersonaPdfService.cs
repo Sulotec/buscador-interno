@@ -303,6 +303,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 {
                     table.ColumnsDefinition(columns =>
                     {
+                        columns.RelativeColumn(1.1f);
                         columns.RelativeColumn(2.3f);
                         columns.RelativeColumn(2.2f);
                         columns.RelativeColumn(1.1f);
@@ -311,12 +312,15 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     });
                     table.Header(header =>
                     {
+                        header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
+                            .PaddingHorizontal(7).PaddingVertical(7).Text("PERIODO").FontSize(7).FontColor("#60748F");
                         foreach (var titulo in new[] { "Entidad", "Tipo de deuda", "Calificación", "Días", "Saldo" })
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                                .PaddingHorizontal(7).PaddingVertical(7).Text(titulo).FontSize(7).FontColor("#60748F");
+                                .PaddingHorizontal(7).PaddingVertical(7).Text(titulo.ToUpperInvariant()).FontSize(7).FontColor("#60748F");
                     });
                     foreach (var deuda in deudas)
                     {
+                        table.Cell().Element(CeldaTabla).Text(FormatearPeriodo(deuda.Periodo));
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.Entidad)).Bold();
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.TipoDeuda));
                         table.Cell().Element(cell => CeldaRegistro(cell, deudas.IndexOf(deuda)))
@@ -324,7 +328,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         table.Cell().Element(CeldaTabla).AlignRight().Text(deuda.Dias?.ToString(Cultura) ?? "—");
                         table.Cell().Element(CeldaTabla).AlignRight().Text(FormatearMoneda(deuda.Saldo)).Bold();
                     }
-                    table.Cell().ColumnSpan(4).Background("#F4F7FB").Padding(7).AlignRight()
+                    table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(7).AlignRight()
                         .Text("TOTAL").FontSize(7.5f).Bold().FontColor(ColorTexto);
                     table.Cell().Background("#F4F7FB").Padding(7).AlignRight()
                         .Text(FormatearMoneda(totalSaldo)).FontSize(7.5f).Bold().FontColor(ColorTexto);
@@ -346,7 +350,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
         {
             var deudas = resultado.Deudas;
             var totalSaldo = deudas.Sum(deuda => deuda.Saldo ?? 0m);
-            column.Item().PaddingTop(10).Border(1).BorderColor(ColorBorde).Column(card =>
+            column.Item().PaddingTop(10).Border(1).BorderColor(ColorBorde).CornerRadius(5).Column(card =>
             {
                 EncabezadoTarjeta(card, "Deudas", deudas.Count);
                 if (deudas.Count == 0)
@@ -414,6 +418,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 var noUsado = linea.LineaNoUtilizada ?? 0m;
                 return new[]
                 {
+                    FormatearPeriodo(linea.Periodo),
                     Mostrar(linea.Entidad), Mostrar(linea.Tipo),
                     total > 0 ? FormatearPorcentaje(usado / total * 100m) : "—",
                     total > 0 ? FormatearPorcentaje(noUsado / total * 100m) : "—",
@@ -422,7 +427,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             }).ToList();
 
             AgregarSeccionEstandard(column, "Líneas de crédito", filas.Count,
-                new[] { "Entidad reportante", "Tipo de línea", "% utilizado", "% no utilizado", "Línea de crédito" },
+                new[] { "Periodo", "Entidad reportante", "Tipo de línea", "% utilizado", "% no utilizado", "Línea de crédito" },
                 filas, "No se encontraron líneas de crédito.");
         }
 
@@ -485,7 +490,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
         private static void AgregarSeccionEstandard(ColumnDescriptor column, string titulo, int cantidad,
             string[] encabezados, List<string[]> filas, string mensajeVacio)
         {
-            column.Item().PaddingTop(10).Border(1).BorderColor(ColorBorde).Column(card =>
+            column.Item().PaddingTop(10).Border(1).BorderColor(ColorBorde).CornerRadius(5).Column(card =>
             {
                 EncabezadoTarjeta(card, titulo, cantidad);
                 if (filas.Count == 0)
