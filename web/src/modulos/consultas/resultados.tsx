@@ -286,9 +286,14 @@ function soloUltimoPeriodo<T>(filas: T[], periodoDe: (f: T) => string): T[] {
 const periodoTipado = (f: { periodo?: string | null }) => f.periodo ?? '';
 const periodoLibre = (f: Record<string, unknown>) => String(f.periodo ?? '');
 
-export function SeccionesResultado({ s, tipadas = true }: { s: Secciones; tipadas?: boolean }) {
-  const [verTodo, setVerTodo] = useState(false);
-  useEffect(() => { setVerTodo(false); }, [s]);
+export type CategoriaSeccionResultado = 'deudas' | 'lineas' | 'calificaciones' | 'laboral' | 'telefonos';
+
+export function SeccionesResultado({ s, tipadas = true, categoria }: { s: Secciones; tipadas?: boolean; categoria?: CategoriaSeccionResultado }) {
+  const [estadoPeriodos, setEstadoPeriodos] = useState({ secciones: s, verTodo: false });
+  if (estadoPeriodos.secciones !== s) {
+    setEstadoPeriodos({ secciones: s, verTodo: false });
+  }
+  const verTodo = estadoPeriodos.secciones === s && estadoPeriodos.verTodo;
 
   const deudas = verTodo ? s.deudas : soloUltimoPeriodo(s.deudas, periodoTipado);
   const lineas = verTodo ? s.lineasCredito : soloUltimoPeriodo(s.lineasCredito, periodoTipado);
@@ -300,40 +305,47 @@ export function SeccionesResultado({ s, tipadas = true }: { s: Secciones; tipada
   const totalRegistros = s.deudas.length + s.lineasCredito.length + s.calificaciones.length + s.sueldos.length + s.moviles.length;
   const visibles = deudas.length + lineas.length + calificaciones.length + (tipadas ? sueldosTipados.length + movilesTipados.length : sueldosLibres.length + movilesLibres.length);
   const hayMas = totalRegistros > visibles;
+  const totalCategoria = categoria === 'deudas' ? s.deudas.length
+    : categoria === 'lineas' ? s.lineasCredito.length
+      : categoria === 'calificaciones' ? s.calificaciones.length
+        : categoria === 'laboral' ? s.sueldos.length
+          : categoria === 'telefonos' ? s.moviles.length : totalRegistros;
+  const visiblesCategoria = categoria === 'deudas' ? deudas.length
+    : categoria === 'lineas' ? lineas.length
+      : categoria === 'calificaciones' ? calificaciones.length
+        : categoria === 'laboral' ? (tipadas ? sueldosTipados.length : sueldosLibres.length)
+          : categoria === 'telefonos' ? (tipadas ? movilesTipados.length : movilesLibres.length) : visibles;
+  const hayMasCategoria = categoria ? totalCategoria > visiblesCategoria : hayMas;
 
   return (
     <div className="space-y-4">
-      {(hayMas || verTodo) && (
+      {(hayMasCategoria || verTodo) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-borde bg-fondo px-4 py-2.5 text-sm text-gris">
-          <span>
-            {verTodo
-              ? 'Mostrando todos los periodos.'
-              : 'Mostrando solo el último periodo de cada sección. El PDF incluye todos los periodos.'}
-          </span>
-          <button type="button" className="font-semibold text-azul hover:underline" onClick={() => setVerTodo((v) => !v)}>
-            {verTodo ? 'Ver solo el último periodo' : `Ver todos los periodos (${fNumero(totalRegistros)} registros)`}
+          <span>{verTodo ? 'Mostrando todos los periodos.' : 'Mostrando solo el último periodo de cada sección. El PDF incluye todos los periodos.'}</span>
+          <button type="button" className="font-semibold text-azul hover:underline" onClick={() => setEstadoPeriodos({ secciones: s, verTodo: !verTodo })}>
+            {verTodo ? 'Ver solo el último periodo' : `Ver todos los periodos (${fNumero(categoria ? totalCategoria : totalRegistros)} registros)`}
           </button>
         </div>
       )}
-      <Seccion titulo="Deudas" icono={<Banknote className="size-[18px]" />} cantidad={deudas.length}>
+      {(!categoria || categoria === 'deudas') && <Seccion titulo="Deudas" icono={<Banknote className="size-[18px]" />} cantidad={deudas.length}>
         <Tabla columnas={colDeudas} filas={deudas} clave={(d, i) => `${d.periodo}-${d.codigoSbs}-${i}`} vacio="No registra deudas." />
-      </Seccion>
-      <Seccion titulo="Líneas de crédito" icono={<CreditCard className="size-[18px]" />} cantidad={lineas.length}>
+      </Seccion>}
+      {(!categoria || categoria === 'lineas') && <Seccion titulo="Líneas de crédito" icono={<CreditCard className="size-[18px]" />} cantidad={lineas.length}>
         <Tabla columnas={colLineas} filas={lineas} clave={(l, i) => `${l.periodo}-${i}`} vacio="No registra líneas de crédito." />
-      </Seccion>
-      <Seccion titulo="Calificaciones" icono={<Gauge className="size-[18px]" />} cantidad={calificaciones.length}>
+      </Seccion>}
+      {(!categoria || categoria === 'calificaciones') && <Seccion titulo="Calificaciones" icono={<Gauge className="size-[18px]" />} cantidad={calificaciones.length}>
         <Tabla columnas={colCalificaciones} filas={calificaciones} clave={(c, i) => `${c.periodo}-${i}`} vacio="No registra calificaciones." />
-      </Seccion>
-      <Seccion titulo="Información laboral" icono={<Briefcase className="size-[18px]" />} cantidad={tipadas ? sueldosTipados.length : sueldosLibres.length}>
+      </Seccion>}
+      {(!categoria || categoria === 'laboral') && <Seccion titulo="Información laboral" icono={<Briefcase className="size-[18px]" />} cantidad={tipadas ? sueldosTipados.length : sueldosLibres.length}>
         {tipadas
           ? <Tabla columnas={colSueldos} filas={sueldosTipados} clave={(x, i) => `${x.periodo}-${i}`} vacio="No registra información laboral." />
           : <Tabla columnas={columnasLibres(sueldosLibres)} filas={sueldosLibres} clave={(_, i) => i} vacio="No registra información laboral." />}
-      </Seccion>
-      <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={tipadas ? movilesTipados.length : movilesLibres.length}>
+      </Seccion>}
+      {(!categoria || categoria === 'telefonos') && <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={tipadas ? movilesTipados.length : movilesLibres.length}>
         {tipadas
           ? <Tabla columnas={colMoviles} filas={movilesTipados} clave={(m, i) => `${m.telefono}-${i}`} vacio="No registra teléfonos." />
           : <Tabla columnas={columnasLibres(movilesLibres)} filas={movilesLibres} clave={(_, i) => i} vacio="No registra teléfonos." />}
-      </Seccion>
+      </Seccion>}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 namespace internal_search.Domain.DTOs.buscador.persona.masivos
 {
     /// <summary>
-    /// Respuesta consolidada: resultados de las 5 tablas para el documento buscado.
+    /// Respuesta consolidada: resultados de las fuentes consultadas para el documento buscado.
     /// </summary>
     public class BuscadorHistorialResponse
     {
@@ -17,6 +17,7 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
         public List<Calificacion> Calificaciones { get; set; } = new();
         public List<Sueldo> Sueldos { get; set; } = new();
         public List<Movil> Moviles { get; set; } = new();
+        public List<Fallecidos> Fallecidos { get; set; } = new();
     }
 
     // Proyecciones ligeras (DTO) en vez de devolver la entidad completa del DbContext.

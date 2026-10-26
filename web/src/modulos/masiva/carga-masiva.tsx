@@ -54,7 +54,6 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
 
   const cargarHistorial = useCallback(() => {
     if (!usuario) return;
-    setCargandoHistorial(true);
     servicioMasiva.historial(usuario.id).then(setHistorial).catch(() => setHistorial([])).finally(() => setCargandoHistorial(false));
   }, [usuario]);
   useEffect(cargarHistorial, [cargarHistorial]);
@@ -86,6 +85,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
       guardarArchivo(resultado);
       setFase({ tipo: 'listo', nombre: resultado.nombre });
       await servicioMasiva.guardarEnHistorial(resultado, secciones, analisis.validos.length).catch(() => null);
+      setCargandoHistorial(true);
       cargarHistorial();
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo procesar la carga.');
@@ -139,21 +139,21 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           <div className="flex flex-wrap items-center gap-3">
             <Pestanas<Fuente> valor={fuente} deshabilitadas={ocupado} alCambiar={(v) => { if (!ocupado) setFuente(v); }} opciones={[
             { id: 'pegar', texto: 'Pegar lista', icono: <ClipboardPaste className="size-4" /> },
-            { id: 'archivo', texto: 'Subir archivo', icono: <FileUp className="size-4" /> },
+            // { id: 'archivo', texto: 'Subir archivo', icono: <FileUp className="size-4" /> },
             ]} />
             {ocupado && <span role="status" className="text-xs font-medium text-azul">La carga está en curso; espera a que termine para cambiar la entrada.</span>}
             <span className="text-xs text-gris">{fuente === 'pegar' ? 'Un registro por línea o separados por comas' : 'TXT o CSV, hasta 5 MB'}</span>
           </div>
-          <Boton type="button" variante="secundario" className="h-9 w-full sm:w-auto" onClick={() => guardarArchivo({ blob: plantilla(tipo), nombre: plantilla(tipo).name })}><FileDown className="size-4" />Descargar plantilla</Boton>
+          {/* <Boton type="button" variante="secundario" className="h-9 w-full sm:w-auto" onClick={() => guardarArchivo({ blob: plantilla(tipo), nombre: plantilla(tipo).name })}><FileDown className="size-4" />Descargar plantilla</Boton> */}
         </div>
         {fuente === 'pegar' ? (
           <>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold text-texto">Lista de {etiqueta}</p>
-              <span className="text-xs font-medium text-gris">Un documento por línea · máximo {fNumero(LIMITE_DOCUMENTOS)}</span>
+              <span className="text-xs font-semibold text-gris text-red-800 ">Un documento por línea · máximo {fNumero(LIMITE_DOCUMENTOS)}</span>
             </div>
             <div className="overflow-hidden rounded-xl border-2 border-borde bg-white transition-colors focus-within:border-azul focus-within:ring-2 focus-within:ring-azul/15">
-            <textarea value={texto} onChange={(e) => { setTexto(e.target.value.replace(/[\s,;|]+/g, '\n')); setNombreArchivo(''); }} rows={8} disabled={ocupado}
+            <textarea value={texto} onChange={(e) => { setTexto(e.target.value.replace(/[\s,;|/\\]+/g, '\n')); setNombreArchivo(''); }} rows={8} disabled={ocupado}
               placeholder={tipo === 'empresas' ? 'Pega un RUC por línea\n20100000001\n20100000002' : 'Pega un documento por línea\n12345678\n87654321'}
               aria-label={`Lista de ${etiqueta} para procesar`}
               className="focus-control numeros min-h-48 w-full resize-none border-0 bg-transparent p-4 text-sm leading-6 placeholder:text-gris/70 focus:outline-none focus:ring-0" />

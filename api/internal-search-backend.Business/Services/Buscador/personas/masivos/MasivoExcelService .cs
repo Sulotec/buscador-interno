@@ -49,11 +49,11 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             hoja.Cell(3, 1).Value = "Total solicitados";
             hoja.Cell(3, 2).Value = resultado.TotalSolicitados;
 
-            hoja.Cell(4, 1).Value = "DNIs inválidos";
-            hoja.Cell(4, 2).Value = resultado.DnisInvalidos.Count;
+            hoja.Cell(4, 1).Value = "Documentos inválidos";
+            hoja.Cell(4, 2).Value = resultado.DocumentosInvalidos.Count;
 
-            hoja.Cell(5, 1).Value = "DNIs sin resultados (en las secciones elegidas)";
-            hoja.Cell(5, 2).Value = resultado.DnisSinResultados.Count;
+            hoja.Cell(5, 1).Value = "Documentos sin resultados (en las secciones elegidas)";
+            hoja.Cell(5, 2).Value = resultado.DocumentosSinResultados.Count;
 
             // Solo se listan las secciones que el usuario eligió
             var fila = 6;
@@ -72,7 +72,6 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             AgregarConteo(SeccionesMasivo.Deuda, "Registros de deudas", resultado.Deudas.Count);
             AgregarConteo(SeccionesMasivo.LineasCredito, "Registros de líneas de crédito", resultado.LineasCredito.Count);
             AgregarConteo(SeccionesMasivo.Fallecidos, "Documentos con fallecimiento registrado", resultado.Fallecidos.Count);
-
             hoja.Columns().AdjustToContents();
         }
         private void CrearMoviles(
@@ -344,9 +343,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             };
 
             for (int i = 0; i < headers.Length; i++)
-            {
                 hoja.Cell(1, i + 1).Value = headers[i];
-            }
 
             for (int i = 0; i < datos.Count; i++)
             {
@@ -364,7 +361,6 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
             hoja.Column(6).Style.DateFormat.Format = "dd/MM/yyyy";
             hoja.Column(7).Style.DateFormat.Format = "dd/MM/yyyy";
-
             FormatearHoja(hoja, headers.Length);
         }
 

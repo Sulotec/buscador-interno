@@ -4,6 +4,7 @@ import type { Deuda, LineaCredito, Calificacion, Sueldo, Movil } from "@/modulos
 export interface ResultadoPersona {
   esDniValido: boolean; documento: string;
   deudas: Deuda[]; lineasCredito: LineaCredito[]; calificaciones: Calificacion[]; sueldos: Sueldo[]; moviles: Movil[];
+  fallecidos?: RegistroFallecido[];
 }
 
 export interface ResultadoTelefono { telefono: string; documentosAsociados: number; registros: Movil[] }

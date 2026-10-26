@@ -10,7 +10,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
     public class BuscadorMasivoService : IMasivoExcelService
     {
-        private const int MaxDnis = 5000;
+        private const int MaxDocumentos = 5000;
         private readonly IBuscadorMasivoRepository _repo;               // ✅
 
         public BuscadorMasivoService(IBuscadorMasivoRepository repo)    // ✅
@@ -22,18 +22,18 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
         public async Task<BuscadorMasivoResponse> BuscarMasivoAsync(
             Stream archivo, HashSet<string> secciones, CancellationToken ct)
         {
-            var (validos, invalidos) = DniFileParser.Parse(archivo);
+            var (validos, invalidos) = DocumentoFileParser.Parse(archivo);
 
             if (validos.Count == 0)
-                throw new ArgumentException("El archivo no contiene DNIs válidos.");
+                throw new ArgumentException("El archivo no contiene documentos válidos. Se aceptan DNI, RUC, CE y pasaporte.");
 
-            if (validos.Count > MaxDnis)
-                throw new ArgumentException($"El máximo por carga es {MaxDnis} DNIs.");
+            if (validos.Count > MaxDocumentos)
+                throw new ArgumentException($"El máximo por carga es {MaxDocumentos} documentos.");
 
             var result = await _repo.BuscarMasivoAsync(validos, secciones, ct);   // cambio
 
             result.TotalSolicitados = validos.Count;
-            result.DnisInvalidos = invalidos;
+            result.DocumentosInvalidos = invalidos;
 
             // Solo cuentan las secciones consultadas: las no seleccionadas quedan vacías
             var encontrados = result.Moviles.Select(x => x.Documento)
@@ -44,7 +44,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 .Concat(result.Fallecidos.Select(x => x.Dni))
                 .ToHashSet();
 
-            result.DnisSinResultados = validos.Where(d => !encontrados.Contains(d)).ToList();
+            result.DocumentosSinResultados = validos.Where(d => !encontrados.Contains(d)).ToList();
 
             return result;
         }

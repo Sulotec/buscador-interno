@@ -1,24 +1,25 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import clsx from 'clsx';
-import { ChevronDown, FileDown, HeartCrack, IdCard, Phone, UserRound, UserSearch } from 'lucide-react';
+import { Banknote, BookOpen, Briefcase, Check, CreditCard, FileDown, Gauge, HeartCrack, IdCard, Phone, Search, UserRound, UserSearch, X } from 'lucide-react';
 import { BarraBusqueda } from '@/modulos/consultas/barra-busqueda';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
 import { FichaReniec } from '@/modulos/personas/ficha-reniec';
-import { Operadora, Resumen, Seccion, SeccionesResultado, colMoviles } from '@/modulos/consultas/resultados';
+import { Operadora, Resumen, Seccion, SeccionesResultado, colMoviles, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { Aviso, Boton, Cargando, Encabezado, Pestanas, Tabla, Tarjeta, Vacio } from '@/components/ui';
+import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Tarjeta, Vacio } from '@/components/ui';
 import { ErrorApi, guardarArchivo } from '@/lib/api';
 import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, validarDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
 import { SelectorDocumento } from '@/modulos/personas/selector-documento';
+import { BusquedaGlobalPersonas } from '@/modulos/personas/busqueda-global';
 import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
-import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre } from '@/modulos/personas/tipos';
+import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre, ResultadoTelefono } from '@/modulos/personas/tipos';
 
 type Modo = 'documento' | 'telefono' | 'nombres' | 'fallecidos';
-// La busqueda por apellidos y nombres aun no esta terminada: la pestana se muestra como "en construccion" y no llama a la API.
-// Cuando el equipo la de por lista, basta con poner true (el formulario y los resultados ya estan hechos).
-const BUSQUEDA_NOMBRES_DISPONIBLE = false;
+type CategoriaResultados = CategoriaSeccionResultado | 'fallecidos';
+// La búsqueda por apellidos y nombres usa el formulario y los resultados ya implementados.
+const BUSQUEDA_NOMBRES_DISPONIBLE = true;
 
 const columnasFallecidos = [
   { titulo: 'DNI', celda: (r: RegistroFallecido) => <span className="numeros font-semibold">{fTexto(r.dni)}</span> },
@@ -48,25 +49,90 @@ export default function Personas() {
     modoPersona: modo, setModoPersona: setModo, tipoDocumento: tipo, setTipoDocumento: setTipo,
     entradaDocumento, setEntradaDocumento, entradaTelefono, setEntradaTelefono,
     persona, setPersona, consultado, setConsultado, reniec, setReniec, telefono, setTelefono,
+    busquedaPersona, setBusquedaPersona,
   } = useEstadoConsultas();
-  const [cargando, setCargando] = useState(false);
+  const cargando = busquedaPersona.cargandoLocal;
+  const setCargando = (value: boolean) => setBusquedaPersona((state) => ({ ...state, cargandoLocal: value }));
   const [error, setError] = useState('');
+  const [mostrarGuia, setMostrarGuia] = useState(false);
   const [cargandoReniec, setCargandoReniec] = useState(false);
   const [cargandoPdf, setCargandoPdf] = useState(false);
-  const [apePat, setApePat] = useState('');
-  const [apeMat, setApeMat] = useState('');
-  const [nombres, setNombres] = useState('');
-  const [resultadosNombres, setResultadosNombres] = useState<ResultadoNombre[] | null>(null);
-  const [documentoNombreSeleccionado, setDocumentoNombreSeleccionado] = useState('');
-  const [dniFallecido, setDniFallecido] = useState('');
-  const [apePatFallecido, setApePatFallecido] = useState('');
-  const [apeMatFallecido, setApeMatFallecido] = useState('');
-  const [prenombresFallecido, setPrenombresFallecido] = useState('');
-  const [resultadoFallecido, setResultadoFallecido] = useState<ResultadoFallecidos | null>(null);
+  const apePat = busquedaPersona.apellidoPaterno;
+  const apeMat = busquedaPersona.apellidoMaterno;
+  const nombres = busquedaPersona.nombres;
+  const resultadosNombres = busquedaPersona.resultadosNombres;
+  const documentoNombreSeleccionado = busquedaPersona.documentoNombreSeleccionado;
+  const setApePat = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoPaterno: value }));
+  const setApeMat = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoMaterno: value }));
+  const setNombres = (value: string) => setBusquedaPersona((state) => ({ ...state, nombres: value }));
+  const setResultadosNombres = (value: ResultadoNombre[] | null) => setBusquedaPersona((state) => ({ ...state, resultadosNombres: value }));
+  const setDocumentoNombreSeleccionado = (value: string) => setBusquedaPersona((state) => ({ ...state, documentoNombreSeleccionado: value }));
+  const [mostrarPersonasNombres, setMostrarPersonasNombres] = useState(false);
+  const [filtroPersonaNombres, setFiltroPersonaNombres] = useState('');
+  const dniFallecido = busquedaPersona.dniFallecido;
+  const apePatFallecido = busquedaPersona.apellidoPaternoFallecido;
+  const apeMatFallecido = busquedaPersona.apellidoMaternoFallecido;
+  const prenombresFallecido = busquedaPersona.prenombresFallecido;
+  const resultadoFallecido = busquedaPersona.resultadoFallecido;
+  const setDniFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, dniFallecido: value }));
+  const setApePatFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoPaternoFallecido: value }));
+  const setApeMatFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoMaternoFallecido: value }));
+  const setPrenombresFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, prenombresFallecido: value }));
+  const setResultadoFallecido = (value: ResultadoFallecidos | null) => setBusquedaPersona((state) => ({ ...state, resultadoFallecido: value }));
+  const [mostrarClientesTelefono, setMostrarClientesTelefono] = useState(false);
+  const [filtroClienteTelefono, setFiltroClienteTelefono] = useState('');
+  const documentoTelefonoSeleccionado = busquedaPersona.documentoTelefonoSeleccionado;
+  const setDocumentoTelefonoSeleccionado = (value: string | null) => setBusquedaPersona((state) => ({ ...state, documentoTelefonoSeleccionado: value }));
+  const mostrarResultadosPorTab = busquedaPersona.mostrarResultadosPorTab;
+  const setMostrarResultadosPorTab = (value: boolean) => setBusquedaPersona((state) => ({ ...state, mostrarResultadosPorTab: value }));
+  const categoriaResultados = busquedaPersona.categoriaResultados as CategoriaResultados;
+  const setCategoriaResultados = (value: CategoriaResultados) => setBusquedaPersona((state) => ({ ...state, categoriaResultados: value }));
+  const vistaBusqueda = busquedaPersona.vista;
+  const setVistaBusqueda = (value: 'global' | 'local' | null) => setBusquedaPersona((state) => ({ ...state, vista: value }));
+  const busquedaGlobalCargando = busquedaPersona.global.cargando;
+  const setBusquedaGlobalCargando = (value: boolean) => setBusquedaPersona((state) => ({ ...state, global: { ...state.global, cargando: value } }));
+
+  function limpiarBusquedaLocal() {
+    setModo('documento');
+    setTipo('DNI');
+    setEntradaDocumento('');
+    setEntradaTelefono('');
+    setPersona(null);
+    setConsultado(null);
+    setReniec(null);
+    setTelefono(null);
+    setApePat(''); setApeMat(''); setNombres('');
+    setResultadosNombres(null); setDocumentoNombreSeleccionado(''); setMostrarPersonasNombres(false); setFiltroPersonaNombres('');
+    setDniFallecido(''); setApePatFallecido(''); setApeMatFallecido(''); setPrenombresFallecido('');
+    setResultadoFallecido(null);
+    setMostrarClientesTelefono(false); setFiltroClienteTelefono(''); setDocumentoTelefonoSeleccionado(null);
+    setMostrarResultadosPorTab(false); setCategoriaResultados('telefonos');
+    setError('');
+  }
+
+  function activarBusquedaGlobal() {
+    if (vistaBusqueda === 'global') return;
+    setVistaBusqueda('global');
+  }
+
+  function activarBusquedaLocal() {
+    if (vistaBusqueda === 'local') return;
+    setVistaBusqueda('local');
+  }
+
+  function limpiarBusquedaGlobal() {
+    limpiarBusquedaLocal();
+    setBusquedaPersona((state) => ({
+      ...state,
+      global: { tipo: 'DNI', documentos: { DNI: '', CE: '', RUC: '', PASAPORTE: '' }, dniFallecido: '', telefono: '', apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultado: null, resultadosPorTipo: {}, personaNombreSeleccionada: '', personasNombreSeleccionadas: {}, fichasPorTipo: {}, telefonoSeleccionado: null, cargando: false },
+    }));
+    setVistaBusqueda(null);
+  }
 
   const bloquearNombresFallecido = Boolean(dniFallecido.trim());
   const bloquearDniFallecido = Boolean(apePatFallecido.trim() || apeMatFallecido.trim() || prenombresFallecido.trim());
   const bloqueandoCambioModo = cargando || cargandoReniec;
+  const consultaEnCurso = busquedaGlobalCargando || cargando;
 
   const botonFallecidosDeshabilitado = cargando || (
     bloquearNombresFallecido
@@ -78,6 +144,7 @@ export default function Personas() {
 
   const buscarDocumento = useCallback(async (t: TipoDocumento, numero: string) => {
     setModo('documento');
+    setMostrarResultadosPorTab(false);
     setTipo(t);
     setError('');
     setPersona(null);
@@ -107,7 +174,11 @@ export default function Personas() {
     }
     setCargando(true);
     try {
-      setTelefono(await servicioPersonas.porTelefono(num));
+      const resultado = await servicioPersonas.porTelefono(num);
+      setTelefono(resultado);
+      setDocumentoTelefonoSeleccionado(null);
+      setFiltroClienteTelefono('');
+      setMostrarClientesTelefono(false);
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo realizar la consulta.');
     } finally {
@@ -121,6 +192,8 @@ export default function Personas() {
     setError('');
     setResultadosNombres(null);
     setDocumentoNombreSeleccionado('');
+    setMostrarPersonasNombres(false);
+    setFiltroPersonaNombres('');
 
     const paterno = apePat.trim();
     const materno = apeMat.trim();
@@ -287,14 +360,99 @@ export default function Personas() {
     .map((m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat))
     .filter((nombre) => nombre !== '—') ?? [])];
 
+  const clientesTelefono = [...new Map(telefono?.registros.map((registro) => {
+    const nombre = nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat);
+    const clave = registro.documento?.trim() || nombre;
+    return [clave, { clave, documento: registro.documento, nombre, periodo: registro.periodo }] as const;
+  }) ?? []).values()];
+  const clientesTelefonoFiltrados = clientesTelefono.filter((cliente) =>
+    `${cliente.nombre} ${cliente.documento ?? ''}`.toLocaleLowerCase().includes(filtroClienteTelefono.trim().toLocaleLowerCase()),
+  );
+  const clienteTelefonoSeleccionado = clientesTelefono.find((cliente) => cliente.clave === documentoTelefonoSeleccionado);
+  const resultadosNombresFiltrados = resultadosNombres?.filter((resultado) =>
+    `${resultado.nombreCompleto} ${resultado.documento}`.toLocaleLowerCase().includes(filtroPersonaNombres.trim().toLocaleLowerCase()),
+  ) ?? [];
+  const registrosTelefonoVisibles = telefono?.registros.filter((registro) =>
+    !documentoTelefonoSeleccionado || (registro.documento?.trim() || nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)) === documentoTelefonoSeleccionado,
+  ) ?? [];
+
   return (
-    <div className="space-y-6">
-      <Encabezado titulo="Consulta de personas" bajada="Cada consulta descuenta tokens y queda registrada en la auditoría." />
-      <div className="flex flex-col gap-2">
+    <div className="relative space-y-6" aria-busy={busquedaGlobalCargando || cargando}>
+      <Encabezado titulo="Consulta de personas" bajada="Cada consulta descuenta tokens y queda registrada en la auditoría."
+        accion={<div className="flex flex-wrap items-center gap-2">
+          {/* Botón temporalmente oculto; conservar para volver a habilitar la guía.
+          <Boton type="button" variante="secundario" onClick={() => setMostrarGuia(true)} aria-haspopup="dialog">
+            <BookOpen aria-hidden className="size-4" />Cómo usar la consulta
+          </Boton>
+          */}
+          <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={limpiarBusquedaGlobal}>Limpiar</Boton>
+        </div>} />
+        <Modal abierto={mostrarGuia} titulo="Guía rápida de consulta" alCerrar={() => setMostrarGuia(false)} ancho="max-w-3xl">
+          <p className="mb-5 text-sm text-gris">Cómo buscar, elegir una persona y revisar sus datos.</p>
+          <ol className="grid gap-5 sm:grid-cols-2">
+          <li className="flex items-start gap-3">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">1</span>
+            <p className="text-sm leading-5 text-gris"><strong className="text-texto">Elige dónde buscar.</strong> Usa Búsqueda global para un criterio independiente o selecciona un tipo en «¿Qué dato deseas consultar?».</p>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">2</span>
+            <p className="text-sm leading-5 text-gris"><strong className="text-texto">Ingresa el dato.</strong> Completa el documento, teléfono, apellidos y nombres o los datos de fallecidos que solicita el formulario.</p>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">3</span>
+            <p className="text-sm leading-5 text-gris"><strong className="text-texto">Pulsa Buscar o Consultar.</strong> Espera a que termine la consulta antes de cambiar de criterio o enviar otra búsqueda.</p>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">4</span>
+            <p className="text-sm leading-5 text-gris"><strong className="text-texto">Revisa los resultados.</strong> Cambia entre las pestañas de datos. En teléfono o nombres, abre el filtro para encontrar y seleccionar a la persona.</p>
+          </li>
+          </ol>
+        </Modal>
+      {vistaBusqueda !== 'local' && <BusquedaGlobalPersonas
+        activa={vistaBusqueda === 'global'}
+        documentoTelefonoSeleccionado={documentoTelefonoSeleccionado}
+        alCambiarCarga={setBusquedaGlobalCargando}
+        alInteractuar={activarBusquedaGlobal}
+        alFiltrarTelefono={setDocumentoTelefonoSeleccionado}
+        alLimpiarTelefono={() => {
+          setTelefono(null);
+          setPersona(null);
+          setConsultado(null);
+          setReniec(null);
+          setDocumentoTelefonoSeleccionado(null);
+          setMostrarClientesTelefono(false);
+          setMostrarResultadosPorTab(false);
+        }}
+        alEncontrarTelefono={(resultado: ResultadoTelefono) => {
+          setModo('telefono');
+          setTelefono(resultado);
+          setEntradaTelefono(resultado.telefono);
+          setPersona(null);
+          setConsultado(null);
+          setMostrarResultadosPorTab(false);
+          setCategoriaResultados('telefonos');
+          setError('');
+        }}
+        alEncontrarDocumento={(tipo, resultado, mantenerTelefono = false) => {
+        if (!mantenerTelefono) setModo('documento');
+        setMostrarResultadosPorTab(true);
+        setCategoriaResultados('telefonos');
+        setTipo(tipo);
+        setPersona(resultado);
+        setConsultado({ tipo, numero: resultado.documento });
+        setEntradaDocumento(resultado.documento);
+        setReniec(null);
+        setError('');
+        setVistaBusqueda('global');
+      }} />}
+      {vistaBusqueda !== 'global' && <>
+      <div className="flex flex-col gap-2" onFocusCapture={activarBusquedaLocal}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gris">¿Qué dato deseas consultar?</p>
+        </div>
         <Pestanas<Modo>
           valor={modo} deshabilitadas={bloqueandoCambioModo}
-          alCambiar={(m) => { if (bloqueandoCambioModo) return; setModo(m); setError(''); }}
+          alCambiar={(m) => { if (bloqueandoCambioModo) return; activarBusquedaLocal(); setModo(m); setError(''); }}
           opciones={[
             { id: 'documento', texto: 'Documento', icono: <IdCard className="size-4" /> },
             { id: 'telefono', texto: 'Teléfono', icono: <Phone className="size-4" /> },
@@ -305,7 +463,7 @@ export default function Personas() {
         {bloqueandoCambioModo && <p role="status" className="text-xs font-medium text-azul">{cargando ? 'La búsqueda está en curso. Espera a que termine para cambiar de pestaña.' : 'La consulta de RENIEC está en curso. Espera a que termine para cambiar de pestaña.'}</p>}
       </div>
 
-      <Tarjeta>
+      <div onFocusCapture={activarBusquedaLocal}><Tarjeta>
         <div className="mb-4 flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-azul-10 text-azul">
             {modo === 'documento' ? <IdCard className="size-5" /> : modo === 'telefono' ? <Phone className="size-5" /> : modo === 'fallecidos' ? <HeartCrack className="size-5" /> : <UserRound className="size-5" />}
@@ -323,7 +481,7 @@ export default function Personas() {
           <BarraBusqueda key={`doc-${tipo}`} etiqueta={DOCUMENTOS[tipo].etiqueta}
             placeholder={`${DOCUMENTOS[tipo].etiqueta}: ${DOCUMENTOS[tipo].descripcion}`} valorInicial={entradaDocumento} alCambiarValor={setEntradaDocumento} cargando={cargando}
             numerica={DOCUMENTOS[tipo].soloNumeros} longitudMaxima={DOCUMENTOS[tipo].longitudMaxima} mayusculas sinEspacios
-            prefijo={<SelectorDocumento valor={tipo} alCambiar={(t) => { setTipo(t); setError(''); }} />}
+            prefijo={<SelectorDocumento valor={tipo} disabled={cargando} alCambiar={(t) => { setTipo(t); setError(''); }} />}
             validar={(v) => validarDocumento(tipo, v)} alBuscar={(v) => buscarDocumento(tipo, v)} />
         )}
         {modo === 'telefono' && (
@@ -348,7 +506,7 @@ export default function Personas() {
                   value={apePat}
                   onChange={(e) => { setApePat(limpiarApellido(e.target.value)); setError(''); }}
                   onKeyDown={(e) => { if (e.key === ' ' || (e.key.length === 1 && /\d/.test(e.key))) e.preventDefault(); }}
-                  maxLength={50} required placeholder="Ej. García" className="input input--icono h-10"
+                  disabled={cargando} maxLength={50} required placeholder="Ej. García" className="input input--icono h-10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </span>
             </label>
@@ -362,7 +520,7 @@ export default function Personas() {
                   value={apeMat}
                   onChange={(e) => { setApeMat(limpiarApellido(e.target.value)); setError(''); }}
                   onKeyDown={(e) => { if (e.key === ' ' || (e.key.length === 1 && /\d/.test(e.key))) e.preventDefault(); }}
-                  maxLength={50} placeholder="Ej. López (opcional)" className="input input--icono h-10"
+                  disabled={cargando} maxLength={50} placeholder="Ej. López (opcional)" className="input input--icono h-10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </span>
             </label>
@@ -376,7 +534,7 @@ export default function Personas() {
                   value={nombres}
                   onChange={(e) => { setNombres(limpiarNombres(e.target.value)); setError(''); }}
                   onKeyDown={(e) => { if (e.key.length === 1 && /\d/.test(e.key)) e.preventDefault(); }}
-                  maxLength={100} placeholder="Ej. Ana María (opcional)" className="input input--icono h-10"
+                  disabled={cargando} maxLength={100} placeholder="Ej. Ana María (opcional)" className="input input--icono h-10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </span>
             </label>
@@ -407,7 +565,7 @@ export default function Personas() {
                       }
                       setError('');
                     }}
-                    disabled={bloquearDniFallecido}
+                    disabled={cargando || bloquearDniFallecido}
                     inputMode="numeric"
                     maxLength={8}
                     placeholder={bloquearDniFallecido ? 'Bloqueado por nombres' : '8 dígitos'}
@@ -417,7 +575,8 @@ export default function Personas() {
                     <button
                       type="button"
                       onClick={() => { setDniFallecido(''); setError(''); }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-gris hover:text-texto"
+                      disabled={cargando}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-gris hover:text-texto disabled:cursor-not-allowed disabled:opacity-50"
                       title="Borrar DNI"
                     >
                       ✕
@@ -439,7 +598,7 @@ export default function Personas() {
                       setError('');
                     }}
                     onKeyDown={(e) => { if (e.key === ' ' || (e.key.length === 1 && /\d/.test(e.key))) e.preventDefault(); }}
-                    disabled={bloquearNombresFallecido}
+                    disabled={cargando || bloquearNombresFallecido}
                     maxLength={50} placeholder={bloquearNombresFallecido ? 'Bloqueado por DNI' : 'Ej. García'}
                     className="input input--icono h-10 disabled:bg-slate-100 disabled:text-gris/50 disabled:cursor-not-allowed disabled:border-borde/60"
                   />
@@ -459,7 +618,7 @@ export default function Personas() {
                       setError('');
                     }}
                     onKeyDown={(e) => { if (e.key === ' ' || (e.key.length === 1 && /\d/.test(e.key))) e.preventDefault(); }}
-                    disabled={bloquearNombresFallecido}
+                    disabled={cargando || bloquearNombresFallecido}
                     maxLength={50} placeholder={bloquearNombresFallecido ? 'Bloqueado por DNI' : 'Ej. López'}
                     className="input input--icono h-10 disabled:bg-slate-100 disabled:text-gris/50 disabled:cursor-not-allowed disabled:border-borde/60"
                   />
@@ -485,7 +644,7 @@ export default function Personas() {
                         e.preventDefault();
                       }
                     }}
-                    disabled={bloquearNombresFallecido}
+                    disabled={cargando || bloquearNombresFallecido}
                     maxLength={100} placeholder={bloquearNombresFallecido ? 'Bloqueado por DNI' : 'Ej. Ana María'}
                     className="input input--icono h-10 disabled:bg-slate-100 disabled:text-gris/50 disabled:cursor-not-allowed disabled:border-borde/60"
                   />
@@ -497,7 +656,8 @@ export default function Personas() {
             </form>
           </div>
         )}
-      </Tarjeta>
+      </Tarjeta></div>
+      </>}
 
       {error && <Aviso tono="error" alCerrar={() => setError('')}>{error}</Aviso>}
       {cargando && <Cargando />}
@@ -517,26 +677,74 @@ export default function Personas() {
           {consultado?.tipo === 'DNI' && !persona.esDniValido && <Aviso tono="alerta">El DNI no figura como válido en las fuentes consultadas.</Aviso>}
           {reniec && <FichaReniec r={reniec} />}
           <Resumen s={persona} />
-          <SeccionesResultado s={persona} />
+          {mostrarResultadosPorTab ? <>
+            <Pestanas<CategoriaResultados>
+              valor={categoriaResultados}
+              alCambiar={setCategoriaResultados}
+              deshabilitadas={consultaEnCurso}
+              opciones={[
+                { id: 'telefonos', texto: 'Móviles', icono: <Phone className="size-4" /> },
+                { id: 'laboral', texto: 'Sueldos', icono: <Briefcase className="size-4" /> },
+                { id: 'deudas', texto: 'Deudas', icono: <Banknote className="size-4" /> },
+                { id: 'calificaciones', texto: 'Calificación', icono: <Gauge className="size-4" /> },
+                { id: 'lineas', texto: 'Líneas de crédito', icono: <CreditCard className="size-4" /> },
+                { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
+              ]}
+            />
+            {categoriaResultados === 'fallecidos'
+              ? consultado?.tipo === 'DNI'
+                ? <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
+                    <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
+                  </Seccion>
+                : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
+              : <SeccionesResultado s={persona} categoria={categoriaResultados} />}
+          </> : <>
+            <SeccionesResultado s={persona} />
+            {consultado?.tipo === 'DNI' && <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
+              <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
+            </Seccion>}
+          </>}
         </div>
       )}
 
       {modo === 'nombres' && resultadosNombres && (
         resultadosNombres.length ? <div className="space-y-6">
-          <p className="text-sm font-medium text-gris">{fNumero(resultadosNombres.length)} coincidencias encontradas</p>
-          <div className="max-w-2xl">
-            <label htmlFor="coincidencia-persona" className="mb-1.5 block text-sm font-medium text-texto">Selecciona una persona</label>
-            <span className="relative block">
-              <select id="coincidencia-persona" value={documentoNombreSeleccionado} onChange={(e) => setDocumentoNombreSeleccionado(e.target.value)}
-                className="selector-documento__select focus-control w-full cursor-pointer appearance-none rounded-xl border-2 border-borde bg-white p-2 pr-10 text-sm font-semibold text-texto transition-colors hover:border-azul-25 focus:border-azul focus:outline-none">
-                <option value="">Elige entre {fNumero(resultadosNombres.length)} coincidencias</option>
-                {resultadosNombres.map((resultado) => (
-                  <option className="selector-documento__opcion" key={resultado.documento} value={resultado.documento}>{resultado.nombreCompleto} · {resultado.documento}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-azul" aria-hidden />
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-medium text-gris">{fNumero(resultadosNombres.length)} coincidencias encontradas</p>
+            <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => { setFiltroPersonaNombres(''); setMostrarPersonasNombres(true); }}>
+              <UserRound className="size-4" />{documentoNombreSeleccionado ? 'Cambiar persona' : 'Filtrar y elegir persona'}
+            </Boton>
           </div>
+          {(() => {
+            const seleccionado = resultadosNombres.find((r) => r.documento === documentoNombreSeleccionado);
+            return seleccionado ? <div className="rounded-lg border border-azul/20 bg-azul-10/50 px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-azul">Persona seleccionada</p>
+              <p className="mt-1 font-semibold text-texto">{seleccionado.nombreCompleto}</p>
+              <p className="numeros mt-0.5 text-xs text-gris">Documento {seleccionado.documento}</p>
+            </div> : <Vacio icono={<UserRound className="size-5" />} titulo="Elige una persona">Abre el filtro para buscar y seleccionar una coincidencia.</Vacio>;
+          })()}
+          {mostrarPersonasNombres && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!consultaEnCurso && e.target === e.currentTarget) setMostrarPersonasNombres(false); }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="personas-nombres-local-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
+              <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
+                <div><h3 id="personas-nombres-local-titulo" className="font-semibold text-texto">Elegir persona</h3><p className="mt-1 text-xs text-gris">Filtra por apellidos, nombres o documento. Se encontraron {fNumero(resultadosNombres.length)} coincidencias.</p></div>
+                <button type="button" aria-label="Cerrar" disabled={consultaEnCurso} onClick={() => setMostrarPersonasNombres(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:opacity-50"><X className="size-4" /></button>
+              </header>
+              <div className="border-b border-borde p-4">
+                <div className="flex gap-2">
+                  <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar personas</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={consultaEnCurso} value={filtroPersonaNombres} onChange={(e) => setFiltroPersonaNombres(e.target.value)} className="input input--icono disabled:cursor-not-allowed disabled:bg-fondo" placeholder="Buscar por apellidos, nombres o documento" /></label>
+                  <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setFiltroPersonaNombres('')}>Limpiar</Boton>
+                </div>
+              </div>
+              <ul className="min-h-0 divide-y divide-borde overflow-y-auto">
+                {resultadosNombresFiltrados.map((resultado) => <li key={resultado.documento}>
+                  <button type="button" disabled={consultaEnCurso} aria-pressed={resultado.documento === documentoNombreSeleccionado} onClick={() => { setDocumentoNombreSeleccionado(resultado.documento); setMostrarPersonasNombres(false); }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:opacity-50 ${resultado.documento === documentoNombreSeleccionado ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
+                    <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{resultado.nombreCompleto}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(resultado.documento)}</span></span>{resultado.documento === documentoNombreSeleccionado && <Check aria-label="Persona seleccionada" className="size-4 shrink-0 text-azul" />}</span><span className="shrink-0 text-xs font-medium text-azul">Ver tablas</span>
+                  </button>
+                </li>)}
+                {!resultadosNombresFiltrados.length && <li className="px-5 py-8 text-center text-sm text-gris">No hay personas que coincidan con el filtro.</li>}
+              </ul>
+            </section>
+          </div>}
           {(() => {
             const seleccionado = resultadosNombres.find((r) => r.documento === documentoNombreSeleccionado);
             return seleccionado ? (
@@ -573,9 +781,47 @@ export default function Personas() {
               <span className="text-xs font-medium text-gris">documentos asociados</span>
             </div>
           </div>
-          <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={telefono.registros.length}>
+          {vistaBusqueda === 'global' && <Pestanas<CategoriaResultados>
+            valor={categoriaResultados}
+            alCambiar={setCategoriaResultados}
+            deshabilitadas={consultaEnCurso}
+            opciones={[
+              { id: 'telefonos', texto: 'Móviles', icono: <Phone className="size-4" /> },
+              { id: 'laboral', texto: 'Sueldos', icono: <Briefcase className="size-4" /> },
+              { id: 'deudas', texto: 'Deudas', icono: <Banknote className="size-4" /> },
+              { id: 'calificaciones', texto: 'Calificación', icono: <Gauge className="size-4" /> },
+              { id: 'lineas', texto: 'Líneas de crédito', icono: <CreditCard className="size-4" /> },
+              { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
+            ]}
+          />}
+          {vistaBusqueda === 'global' && categoriaResultados !== 'telefonos' ? persona ? (
+            categoriaResultados === 'fallecidos'
+              ? consultado?.tipo === 'DNI'
+                ? <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
+                    <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
+                  </Seccion>
+                : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
+              : <SeccionesResultado s={persona} categoria={categoriaResultados} />
+          ) : <Vacio icono={<UserRound className="size-5" />} titulo="Elige un cliente del teléfono">
+            Selecciona un cliente en «Filtrar y elegir cliente» para consultar sus datos en esta pestaña.
+          </Vacio> : <>
+          <div className="flex flex-wrap items-center gap-2">
+            {vistaBusqueda !== 'global' && <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setMostrarClientesTelefono(true)}><UserRound className="size-4" />Filtrar clientes</Boton>}
+            {vistaBusqueda !== 'global' && clienteTelefonoSeleccionado && <span className="inline-flex items-center gap-2 rounded-lg border border-azul/20 bg-azul-10/50 px-3 py-2 text-sm text-texto"><Check className="size-4 shrink-0 text-azul" /><span><span className="font-semibold">{clienteTelefonoSeleccionado.nombre}</span><span className="ml-2 text-xs text-gris">{fTexto(clienteTelefonoSeleccionado.documento)}</span></span></span>}
+            {documentoTelefonoSeleccionado && <Boton type="button" variante="fantasma" disabled={consultaEnCurso} onClick={() => {
+              setDocumentoTelefonoSeleccionado(null);
+              if (vistaBusqueda === 'global') {
+                setPersona(null);
+                setConsultado(null);
+                setReniec(null);
+                setMostrarResultadosPorTab(false);
+                setCategoriaResultados('telefonos');
+              }
+            }}>Limpiar filtro</Boton>}
+          </div>
+          <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
             <div className="divide-y divide-borde sm:hidden">
-              {telefono.registros.map((registro, indice) => (
+              {registrosTelefonoVisibles.map((registro, indice) => (
                 <article key={`${registro.documento}-${indice}`} className="space-y-3 px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -592,12 +838,35 @@ export default function Personas() {
                   </dl>
                 </article>
               ))}
-              {!telefono.registros.length && <p className="px-5 py-8 text-center text-sm text-gris">No se encontraron registros para este número.</p>}
+              {!registrosTelefonoVisibles.length && <p className="px-5 py-8 text-center text-sm text-gris">No se encontraron registros para este número.</p>}
             </div>
             <div className="hidden sm:block">
-              <Tabla columnas={colMoviles} filas={telefono.registros} clave={(m, i) => `${m.documento}-${i}`} vacio="No se encontraron registros para este número." />
+              <Tabla columnas={colMoviles} filas={registrosTelefonoVisibles} clave={(m, i) => `${m.documento}-${i}`} vacio="No se encontraron registros para este número." />
             </div>
           </Seccion>
+          {vistaBusqueda !== 'global' && mostrarClientesTelefono && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!consultaEnCurso && e.target === e.currentTarget) setMostrarClientesTelefono(false); }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="clientes-telefono-tab-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
+              <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
+                <div><h3 id="clientes-telefono-tab-titulo" className="font-semibold text-texto">Elige el cliente del teléfono</h3><p className="mt-1 text-xs text-gris">Filtra por nombre o documento. Se encontraron {clientesTelefono.length} clientes/documentos asociados.</p></div>
+                <button type="button" aria-label="Cerrar" disabled={consultaEnCurso} onClick={() => setMostrarClientesTelefono(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:opacity-50"><X className="size-4" /></button>
+              </header>
+              <div className="border-b border-borde p-4">
+                <div className="flex gap-2">
+                  <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar clientes</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={consultaEnCurso} value={filtroClienteTelefono} onChange={(e) => setFiltroClienteTelefono(e.target.value)} className="input input--icono" placeholder="Buscar por nombre o documento" /></label>
+                  <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setFiltroClienteTelefono('')}>Limpiar</Boton>
+                </div>
+              </div>
+              <ul className="min-h-0 divide-y divide-borde overflow-y-auto">
+                {clientesTelefonoFiltrados.map((cliente) => <li key={cliente.clave}>
+                  <button type="button" disabled={consultaEnCurso} aria-pressed={cliente.clave === documentoTelefonoSeleccionado} onClick={() => { setDocumentoTelefonoSeleccionado(cliente.documento?.trim() || cliente.clave); setMostrarClientesTelefono(false); }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-60 ${cliente.clave === documentoTelefonoSeleccionado ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
+                    <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{cliente.nombre}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(cliente.documento)} · {fPeriodo(cliente.periodo)}</span></span>{cliente.clave === documentoTelefonoSeleccionado && <Check aria-label="Cliente seleccionado" className="size-4 shrink-0 text-azul" />}</span><span className="shrink-0 text-xs font-medium text-azul">Ver líneas</span>
+                  </button>
+                </li>)}
+                {!clientesTelefonoFiltrados.length && <li className="px-5 py-8 text-center text-sm text-gris">No hay clientes que coincidan con el filtro.</li>}
+              </ul>
+            </section>
+          </div>}
+          </>}
         </div>
       )}
 
@@ -610,26 +879,27 @@ export default function Personas() {
         </div>
       )}
 
-      {!cargando && !error && modo === 'documento' && !persona && (
+      {vistaBusqueda !== 'global' && !cargando && !error && modo === 'documento' && !persona && (
         <Vacio icono={<UserSearch className="size-5" />} titulo="Escribe un documento para empezar">
           Verás deudas, líneas de crédito, calificaciones, información laboral y teléfonos.
         </Vacio>
       )}
-      {!cargando && !error && modo === 'telefono' && !telefono && (
+      {vistaBusqueda !== 'global' && !cargando && !error && modo === 'telefono' && !telefono && (
         <Vacio icono={<Phone className="size-5" />} titulo="Escribe un teléfono para empezar">
           Verás los registros asociados al número consultado.
         </Vacio>
       )}
-      {!cargando && !error && modo === 'nombres' && BUSQUEDA_NOMBRES_DISPONIBLE && !resultadosNombres && (
+      {vistaBusqueda !== 'global' && !cargando && !error && modo === 'nombres' && BUSQUEDA_NOMBRES_DISPONIBLE && !resultadosNombres && (
         <Vacio icono={<UserRound className="size-5" />} titulo="Escribe un nombre y apellido para empezar">
           Ingresa al menos el apellido paterno. Puedes añadir el apellido materno y los nombres para afinar la búsqueda.
         </Vacio>
       )}
-      {!cargando && !error && modo === 'fallecidos' && !resultadoFallecido && (
+      {vistaBusqueda !== 'global' && !cargando && !error && modo === 'fallecidos' && !resultadoFallecido && (
         <Vacio icono={<HeartCrack className="size-5" />} titulo="Busca registros de fallecidos">
           Ingresa un DNI o el apellido paterno junto con otro dato para consultar.
         </Vacio>
       )}
+      {consultaEnCurso && <div className="absolute inset-0 z-[60] cursor-wait bg-white/20" aria-hidden="true" />}
     </div>
   );
 }

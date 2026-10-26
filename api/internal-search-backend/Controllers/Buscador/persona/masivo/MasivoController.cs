@@ -96,7 +96,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
 
             try
             {
-                // DniFileParser cierra el stream que recibe, así que cada lectura usa su propia copia
+                // El parser cierra el stream que recibe, así que cada lectura usa su propia copia.
                 byte[] contenido;
                 using (var ms = new MemoryStream())
                 {
@@ -104,14 +104,14 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
                     contenido = ms.ToArray();
                 }
 
-                // Cada DNI válido cuesta 1 token; se cuenta antes de consultar
-                var costo = DniFileParser.Parse(new MemoryStream(contenido)).validos.Count;
+                // Cada documento válido cuesta 1 token; se cuenta antes de consultar.
+                var costo = DocumentoFileParser.Parse(new MemoryStream(contenido)).validos.Count;
                 if (costo == 0)
-                    return BadRequest("El archivo no contiene DNIs válidos.");
+                    return BadRequest("El archivo no contiene documentos válidos.");
 
                 var resultado = await _tokens.EjecutarAsync(
                     this.Contexto(), costo, "BUSQUEDA_MASIVA",
-                    $"{costo} DNI(s); secciones: {string.Join(",", seleccionadas)}",
+                    $"{costo} documento(s); secciones: {string.Join(",", seleccionadas)}",
                     () => _masivoService.BuscarMasivoAsync(new MemoryStream(contenido), seleccionadas, ct));
 
                 var excel = _excelService.GenerarExcel(

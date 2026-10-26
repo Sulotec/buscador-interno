@@ -8,8 +8,8 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
     public class BuscadorMasivoResponse
     {
         public int TotalSolicitados { get; set; }
-        public List<string> DnisInvalidos { get; set; } = new();
-        public List<string> DnisSinResultados { get; set; } = new();
+        public List<string> DocumentosInvalidos { get; set; } = new();
+        public List<string> DocumentosSinResultados { get; set; } = new();
 
         // Una lista por pestaña
         public List<Movil> Moviles { get; set; } = new();

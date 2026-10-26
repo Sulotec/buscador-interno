@@ -30,35 +30,38 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.empresas
             var pideDeuda = secciones.Contains(SeccionesMasivoEmpresa.Deuda);
             var pideLineasCredito = secciones.Contains(SeccionesMasivoEmpresa.LineasCredito);
 
-            string anioActual = DateTime.Now.Year.ToString();
-
             foreach (var lote in rucsValidos.Chunk(1000))
             {
                 var batch = lote.ToList();
 
                 if (pideMoviles)
                     result.Moviles.AddRange(await _db.Movil.AsNoTracking()
-                        .Where(x => batch.Contains(x.Documento) && x.Periodo != null && x.Periodo.StartsWith(anioActual))
+                        .Where(x => batch.Contains(x.Documento))
+                        .OrderByDescending(x => x.Periodo)
                         .ToListAsync(ct));
 
                 if (pideSueldos)
                     result.Sueldos.AddRange(await _db.Sueldos.AsNoTracking()
-                        .Where(x => batch.Contains(x.Documento) && x.Periodo != null && x.Periodo.StartsWith(anioActual))
+                        .Where(x => batch.Contains(x.Documento))
+                        .OrderByDescending(x => x.Periodo)
                         .ToListAsync(ct));
 
                 if (pideCalificacion)
                     result.Calificaciones.AddRange(await _db.Calificaciones.AsNoTracking()
-                        .Where(x => batch.Contains(x.Documento) && x.Periodo != null && x.Periodo.StartsWith(anioActual))
+                        .Where(x => batch.Contains(x.Documento))
+                        .OrderByDescending(x => x.Periodo)
                         .ToListAsync(ct));
 
                 if (pideDeuda)
                     result.Deudas.AddRange(await _db.Deudas.AsNoTracking()
-                        .Where(x => batch.Contains(x.Documento) && x.Periodo != null && x.Periodo.StartsWith(anioActual))
+                        .Where(x => batch.Contains(x.Documento))
+                        .OrderByDescending(x => x.Periodo)
                         .ToListAsync(ct));
 
                 if (pideLineasCredito)
                     result.LineasCredito.AddRange(await _db.LineaCreditos.AsNoTracking()
-                        .Where(x => batch.Contains(x.Documento) && x.Periodo != null && x.Periodo.StartsWith(anioActual))
+                        .Where(x => batch.Contains(x.Documento))
+                        .OrderByDescending(x => x.Periodo)
                         .ToListAsync(ct));
             }
 

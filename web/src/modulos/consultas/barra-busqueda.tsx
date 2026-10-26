@@ -44,9 +44,10 @@ export function BarraBusqueda({
           <input
             value={valor} onChange={(e) => cambiar(e.target.value)} maxLength={longitudMaxima}
             inputMode={numerica ? 'numeric' : 'text'} placeholder={placeholder} aria-invalid={Boolean(error) || undefined}
-            autoComplete="off"
+            autoComplete="off" disabled={cargando}
             className={clsx(
               'input input--busqueda numeros h-10 pl-11 text-base',
+              cargando && 'cursor-not-allowed opacity-70',
               error && 'input--error',
             )}
           />

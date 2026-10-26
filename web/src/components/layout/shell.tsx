@@ -23,13 +23,13 @@ const GRUPOS: Grupo[] = [
       { href: '/personas/masiva', texto: 'Carga masiva', icono: <FileSpreadsheet className="size-[18px]" /> },
     ],
   },
-  {
-    titulo: 'Empresas', clave: 'empresa',
-    enlaces: [
-      { href: '/empresas', texto: 'Consulta individual', icono: <Building2 className="size-[18px]" /> },
-      { href: '/empresas/masiva', texto: 'Carga masiva', icono: <FileSpreadsheet className="size-[18px]" /> },
-    ],
-  },
+  // {
+  //   titulo: 'Empresas', clave: 'empresa',
+  //   enlaces: [
+  //     { href: '/empresas', texto: 'Consulta individual', icono: <Building2 className="size-[18px]" /> },
+  //     { href: '/empresas/masiva', texto: 'Carga masiva', icono: <FileSpreadsheet className="size-[18px]" /> },
+  //   ],
+  // },
   {
     titulo: 'Administración', soloAdmin: true,
     enlaces: [

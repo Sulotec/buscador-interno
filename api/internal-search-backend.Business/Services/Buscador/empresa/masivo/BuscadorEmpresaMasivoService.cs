@@ -45,15 +45,17 @@ namespace internal_search_backend.Business.Services.Buscador.empresas.masivo
                 throw new ArgumentException("El archivo subido está vacío o no contiene registros.");
             }
 
-            // 2. Validación estricta orientada a empresas: 11 dígitos y que empiece con "20"
+            // Se aceptan RUC de persona natural y jurídica (11 dígitos, prefijos tributarios válidos).
             var rucsValidos = rucsCrudos
-                .Where(ruc => ruc.Length == 11 && ruc.StartsWith("20") && ruc.All(char.IsDigit))
+                .Where(ruc => ruc.Length == 11
+                    && (ruc.StartsWith("10") || ruc.StartsWith("15") || ruc.StartsWith("16") || ruc.StartsWith("17") || ruc.StartsWith("20"))
+                    && ruc.All(char.IsDigit))
                 .Distinct()
                 .ToList();
 
             if (rucsValidos.Count == 0)
             {
-                throw new ArgumentException("No se encontraron RUCs válidos en el archivo. Recuerda que deben tener 11 dígitos y empezar con '20'.");
+                throw new ArgumentException("No se encontraron RUC válidos en el archivo. Deben tener 11 dígitos y empezar con 10, 15, 16, 17 o 20.");
             }
 
             // 3. Delegar la consulta masiva optimizada al repositorio

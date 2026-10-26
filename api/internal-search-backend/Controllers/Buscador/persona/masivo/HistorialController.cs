@@ -65,7 +65,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
                 return BadRequest("Debes enviar las secciones seleccionadas.");
 
             if (request.TotalDnis <= 0)
-                return BadRequest("El total de DNI debe ser mayor a cero.");
+                return BadRequest("El total de documentos debe ser mayor a cero.");
 
             var usuarioId =
                 User.FindFirstValue("COD_USUARIO")

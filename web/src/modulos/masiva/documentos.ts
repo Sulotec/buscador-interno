@@ -1,17 +1,22 @@
 // Lectura de listas de documentos (pegadas o desde .txt/.csv) para la carga masiva.
 
-export const LIMITE_DOCUMENTOS = 10_000;
+export const LIMITE_DOCUMENTOS = 5_000;
 export const TAMANO_MAXIMO = 4_990_000; // la API acepta hasta 5 MB por peticion (incluye el formulario)
 
 export type TipoLista = 'personas' | 'empresas';
 
 const TIPOS_PERSONAS = [
   { nombre: 'DNI', patron: /^\d{8}$/ },
-  { nombre: 'RUC', patron: /^(10|15|16|17|20)\d{9}$/ },
+  { nombre: 'RUC persona natural', patron: /^10\d{9}$/ },
+  { nombre: 'RUC persona jurídica', patron: /^20\d{9}$/ },
+  { nombre: 'RUC', patron: /^(15|16|17)\d{9}$/ },
   { nombre: 'Carnet de extranjería', patron: /^\d{9}$/ },
-  { nombre: 'Otros documentos', patron: /^[A-Z0-9-]{4,20}$/ },
+  { nombre: 'Pasaporte', patron: /^[A-Z0-9]{6,12}$/ },
 ];
-const TIPOS_EMPRESAS = [{ nombre: 'RUC', patron: /^20\d{9}$/ }];
+const TIPOS_EMPRESAS = [
+  { nombre: 'RUC persona natural', patron: /^10\d{9}$/ },
+  { nombre: 'RUC persona jurídica', patron: /^(15|16|17|20)\d{9}$/ },
+];
 
 const ENCABEZADOS = /^(dni|ruc|ce|pasaporte|documento|documentos|nro|numero|número|tipo)$/i;
 
