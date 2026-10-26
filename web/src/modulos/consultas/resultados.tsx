@@ -277,8 +277,6 @@ export function Resumen({ s }: { s: Secciones }) {
   );
 }
 
-// En pantalla cada seccion muestra solo su ultimo periodo (pedido del usuario, 2026-10-22); con "Ver todos los periodos"
-// se despliega el historial completo. El PDF se genera con el resultado entero, asi que siempre lleva todos los periodos.
 function soloUltimoPeriodo<T>(filas: T[], periodoDe: (f: T) => string): T[] {
   const ultimo = filas.reduce((m, f) => (periodoDe(f) > m ? periodoDe(f) : m), '');
   return ultimo ? filas.filter((f) => periodoDe(f) === ultimo) : filas;
@@ -289,44 +287,16 @@ const periodoLibre = (f: Record<string, unknown>) => String(f.periodo ?? '');
 export type CategoriaSeccionResultado = 'deudas' | 'lineas' | 'calificaciones' | 'laboral' | 'telefonos';
 
 export function SeccionesResultado({ s, tipadas = true, categoria }: { s: Secciones; tipadas?: boolean; categoria?: CategoriaSeccionResultado }) {
-  const [estadoPeriodos, setEstadoPeriodos] = useState({ secciones: s, verTodo: false });
-  if (estadoPeriodos.secciones !== s) {
-    setEstadoPeriodos({ secciones: s, verTodo: false });
-  }
-  const verTodo = estadoPeriodos.secciones === s && estadoPeriodos.verTodo;
-
-  const deudas = verTodo ? s.deudas : soloUltimoPeriodo(s.deudas, periodoTipado);
-  const lineas = verTodo ? s.lineasCredito : soloUltimoPeriodo(s.lineasCredito, periodoTipado);
-  const calificaciones = verTodo ? s.calificaciones : soloUltimoPeriodo(s.calificaciones, periodoTipado);
-  const sueldosTipados = verTodo ? (s.sueldos as Sueldo[]) : soloUltimoPeriodo(s.sueldos as Sueldo[], periodoTipado);
-  const sueldosLibres = verTodo ? (s.sueldos as Record<string, unknown>[]) : soloUltimoPeriodo(s.sueldos as Record<string, unknown>[], periodoLibre);
-  const movilesTipados = verTodo ? (s.moviles as Movil[]) : soloUltimoPeriodo(s.moviles as Movil[], periodoTipado);
-  const movilesLibres = verTodo ? (s.moviles as Record<string, unknown>[]) : soloUltimoPeriodo(s.moviles as Record<string, unknown>[], periodoLibre);
-  const totalRegistros = s.deudas.length + s.lineasCredito.length + s.calificaciones.length + s.sueldos.length + s.moviles.length;
-  const visibles = deudas.length + lineas.length + calificaciones.length + (tipadas ? sueldosTipados.length + movilesTipados.length : sueldosLibres.length + movilesLibres.length);
-  const hayMas = totalRegistros > visibles;
-  const totalCategoria = categoria === 'deudas' ? s.deudas.length
-    : categoria === 'lineas' ? s.lineasCredito.length
-      : categoria === 'calificaciones' ? s.calificaciones.length
-        : categoria === 'laboral' ? s.sueldos.length
-          : categoria === 'telefonos' ? s.moviles.length : totalRegistros;
-  const visiblesCategoria = categoria === 'deudas' ? deudas.length
-    : categoria === 'lineas' ? lineas.length
-      : categoria === 'calificaciones' ? calificaciones.length
-        : categoria === 'laboral' ? (tipadas ? sueldosTipados.length : sueldosLibres.length)
-          : categoria === 'telefonos' ? (tipadas ? movilesTipados.length : movilesLibres.length) : visibles;
-  const hayMasCategoria = categoria ? totalCategoria > visiblesCategoria : hayMas;
+  const deudas = soloUltimoPeriodo(s.deudas, periodoTipado);
+  const lineas = soloUltimoPeriodo(s.lineasCredito, periodoTipado);
+  const calificaciones = soloUltimoPeriodo(s.calificaciones, periodoTipado);
+  const sueldosTipados = soloUltimoPeriodo(s.sueldos as Sueldo[], periodoTipado);
+  const sueldosLibres = soloUltimoPeriodo(s.sueldos as Record<string, unknown>[], periodoLibre);
+  const movilesTipados = soloUltimoPeriodo(s.moviles as Movil[], periodoTipado);
+  const movilesLibres = soloUltimoPeriodo(s.moviles as Record<string, unknown>[], periodoLibre);
 
   return (
     <div className="space-y-4">
-      {(hayMasCategoria || verTodo) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-borde bg-fondo px-4 py-2.5 text-sm text-gris">
-          <span>{verTodo ? 'Mostrando todos los periodos.' : 'Mostrando solo el último periodo de cada sección. El PDF incluye todos los periodos.'}</span>
-          <button type="button" className="font-semibold text-azul hover:underline" onClick={() => setEstadoPeriodos({ secciones: s, verTodo: !verTodo })}>
-            {verTodo ? 'Ver solo el último periodo' : `Ver todos los periodos (${fNumero(categoria ? totalCategoria : totalRegistros)} registros)`}
-          </button>
-        </div>
-      )}
       {(!categoria || categoria === 'deudas') && <Seccion titulo="Deudas" icono={<Banknote className="size-[18px]" />} cantidad={deudas.length}>
         <Tabla columnas={colDeudas} filas={deudas} clave={(d, i) => `${d.periodo}-${d.codigoSbs}-${i}`} vacio="No registra deudas." />
       </Seccion>}

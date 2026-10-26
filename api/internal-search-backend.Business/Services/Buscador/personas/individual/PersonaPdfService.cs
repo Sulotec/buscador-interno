@@ -213,7 +213,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
 
         private static void AgregarTablaCalificaciones(ColumnDescriptor column, BuscadorHistorialResponse resultado)
         {
-            var calificaciones = resultado.Calificaciones;
+            var calificaciones = SoloUltimoPeriodo(resultado.Calificaciones, item => item.Periodo);
             column.Item().PaddingTop(8).Border(1).BorderColor(ColorBorde).CornerRadius(5).Column(card =>
             {
                 EncabezadoTarjeta(card, "Detalle de calificaciones", calificaciones.Count);
@@ -289,7 +289,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
 
         private static void AgregarDeudasVista(ColumnDescriptor column, BuscadorHistorialResponse resultado)
         {
-            var deudas = resultado.Deudas;
+            var deudas = SoloUltimoPeriodo(resultado.Deudas, item => item.Periodo);
             var totalSaldo = deudas.Sum(deuda => deuda.Saldo ?? 0m);
             column.Item().PaddingTop(10).Border(1).BorderColor(ColorBorde).CornerRadius(5).Column(card =>
             {
@@ -311,7 +311,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     });
                     table.Header(header =>
                     {
-                        foreach (var titulo in new[] { "Entidad", "Tipo de deuda", "Calificación", "Días", "Capital" })
+                        foreach (var titulo in new[] { "Entidad", "Tipo de deuda", "Calificación", "Días", "Saldo" })
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
                                 .PaddingHorizontal(7).PaddingVertical(7).Text(titulo).FontSize(7).FontColor("#60748F");
                     });
@@ -406,7 +406,8 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             card.Item().Height(42).AlignCenter().AlignMiddle().Text(mensaje).FontSize(7.5f).FontColor("#68778D");
         private static void AgregarLineasCreditoVista(ColumnDescriptor column, BuscadorHistorialResponse resultado)
         {
-            var filas = resultado.LineasCredito.Select(linea =>
+            var lineasCredito = SoloUltimoPeriodo(resultado.LineasCredito, item => item.Periodo);
+            var filas = lineasCredito.Select(linea =>
             {
                 var total = linea.LineaCreditoMonto ?? 0m;
                 var usado = linea.LineaUtilizada ?? 0m;
@@ -447,24 +448,39 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 }).ToList(), "No registra calificaciones.");
 
         private static void AgregarSueldos(ColumnDescriptor column, BuscadorHistorialResponse resultado) =>
-            AgregarSeccionEstandard(column, "Información laboral", resultado.Sueldos.Count,
+            AgregarSeccionEstandard(column, "Información laboral", SoloUltimoPeriodo(resultado.Sueldos, item => item.Periodo).Count,
                 new[] { "Periodo", "Empresa", "RUC", "Rango de sueldo", "Nivel de ingreso" },
-                resultado.Sueldos.Select(sueldo => new[]
+                SoloUltimoPeriodo(resultado.Sueldos, item => item.Periodo).Select(sueldo => new[]
                 {
                     FormatearPeriodo(sueldo.Periodo), Mostrar(sueldo.Empresa), Mostrar(sueldo.Ruc),
                     Mostrar(sueldo.RangoSueldo), Mostrar(sueldo.NivelIngreso)
                 }).ToList(), "No registra información laboral.");
 
         private static void AgregarMoviles(ColumnDescriptor column, BuscadorHistorialResponse resultado) =>
-            AgregarSeccionEstandard(column, "Teléfonos", resultado.Moviles.Count,
+            AgregarSeccionEstandard(column, "Teléfonos", SoloUltimoPeriodo(resultado.Moviles, item => item.Periodo).Count,
                 new[] { "Periodo", "Operadora", "Teléfono", "Titular", "Plan / modalidad", "Alta" },
-                resultado.Moviles.Select(movil => new[]
+                SoloUltimoPeriodo(resultado.Moviles, item => item.Periodo).Select(movil => new[]
                 {
                     FormatearPeriodo(movil.Periodo), Mostrar(movil.EmpresaOperadora), Mostrar(movil.Telefono),
                     Mostrar(string.Join(" ", new[] { movil.Prenombres, movil.ApePat, movil.ApeMat }.Where(v => !string.IsNullOrWhiteSpace(v)))),
                     Mostrar(string.Join(" / ", new[] { movil.PlanMovil, movil.Modalidad }.Where(v => !string.IsNullOrWhiteSpace(v)))),
                     movil.FechaAlta?.ToString("dd/MM/yyyy", Cultura) ?? "—"
                 }).ToList(), "No registra teléfonos.");
+
+        // La pantalla y el PDF muestran todos los registros del periodo más reciente de cada sección.
+        private static List<T> SoloUltimoPeriodo<T>(IEnumerable<T> registros, Func<T, string?> obtenerPeriodo)
+        {
+            var lista = registros.ToList();
+            var ultimoPeriodo = lista
+                .Select(obtenerPeriodo)
+                .Where(periodo => !string.IsNullOrWhiteSpace(periodo))
+                .OrderByDescending(periodo => periodo)
+                .FirstOrDefault();
+
+            return ultimoPeriodo is null
+                ? lista
+                : lista.Where(registro => string.Equals(obtenerPeriodo(registro), ultimoPeriodo, StringComparison.Ordinal)).ToList();
+        }
 
         private static void AgregarSeccionEstandard(ColumnDescriptor column, string titulo, int cantidad,
             string[] encabezados, List<string[]> filas, string mensajeVacio)
