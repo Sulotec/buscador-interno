@@ -25,7 +25,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
-        public byte[] Generar(BuscadorHistorialResponse resultado)
+        public byte[] Generar(BuscadorHistorialResponse resultado, string usuarioDescarga)
         {
             resultado ??= new BuscadorHistorialResponse();
             resultado.Deudas ??= new();
@@ -60,8 +60,10 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     });
 
                     // Footer
-                    page.Footer().PaddingTop(10).Row(row =>
+                    page.Footer().PaddingTop(10).Column(footer =>
                     {
+                        footer.Item().Row(row =>
+                        {
                         row.RelativeItem().Text("Informa Perú · Ficha de consulta")
                             .FontSize(7.5f).FontColor("#64748B");
 
@@ -71,6 +73,12 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                             text.Span(DateTime.Now.ToString("dd/MM/yyyy HH:mm", Cultura)).FontColor("#64748B");
                             text.Span("   ·   Página ").FontColor("#64748B");
                             text.CurrentPageNumber().FontColor("#64748B");
+                        });
+                        });
+                        footer.Item().PaddingTop(3).AlignRight().Text(text =>
+                        {
+                            text.Span("Descargado por: ").FontSize(7.5f).FontColor("#64748B");
+                            text.Span(Mostrar(usuarioDescarga)).FontSize(7.5f).Bold().FontColor(ColorTexto);
                         });
                     });
                 });
@@ -94,18 +102,18 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         else
                             logo.Text("Informa Perú").FontSize(13).Bold().FontColor(ColorPrimario);
                     });
-                    row.RelativeItem().AlignCenter().AlignMiddle().Text("Reporte de información crediticia")
+                    row.RelativeItem().AlignCenter().AlignMiddle().Text("Reporte de información")
                         .FontSize(17).Bold().FontColor("#111827");
                     row.ConstantItem(118);
                 });
 
                 header.Item().PaddingTop(5).Row(row =>
                 {
-                    TarjetaDato(row.RelativeItem(), "DOCUMENTO", $"{tipo} {Mostrar(resultado.Documento)}");
+                    TarjetaDato(row.RelativeItem(1.4f), "DOCUMENTO", $"{tipo} {Mostrar(resultado.Documento)}");
                     row.ConstantItem(6);
-                    TarjetaDato(row.RelativeItem(2.2f), "NOMBRE", Mostrar(resultado.NombreCompleto));
+                    TarjetaDato(row.RelativeItem(3.2f), "NOMBRE", Mostrar(resultado.NombreCompleto));
                     row.ConstantItem(6);
-                    TarjetaDato(row.RelativeItem(1.6f), "CONSULTA", fechaConsulta);
+                    TarjetaDato(row.RelativeItem(2), "CONSULTA", fechaConsulta);
                 });
             });
         }
@@ -239,19 +247,19 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     {
                         foreach (var titulo in new[] { "PERIODO", "NORMAL", "PROB. POTENCIALES", "DEFICIENTE", "DUDOSO", "PÉRDIDA", "REPORTAN" })
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                                .PaddingHorizontal(4).PaddingVertical(6).Text(titulo).FontSize(6.2f).Bold().FontColor("#536176");
+                                .PaddingHorizontal(4).PaddingVertical(6).AlignCenter().Text(titulo).FontSize(6.2f).Bold().FontColor("#536176");
                     });
 
                     for (var indice = 0; indice < calificaciones.Count; indice++)
                     {
                         var item = calificaciones[indice];
-                        table.Cell().Element(cell => CeldaRegistro(cell, indice)).Text(FormatearPeriodo(item.Periodo));
+                        table.Cell().Element(cell => CeldaRegistro(cell, indice)).AlignCenter().Text(FormatearPeriodo(item.Periodo));
                         CeldaPorcentaje(table, item.Nor, "#00875A", "#E5F5EF", indice);
                         CeldaPorcentaje(table, item.Cpp, "#9A6700", "#FFF4D6", indice);
                         CeldaPorcentaje(table, item.Def, "#B54708", "#FFF0E5", indice);
                         CeldaPorcentaje(table, item.Dud, "#C43232", "#FDECEC", indice);
                         CeldaPorcentaje(table, item.Per, "#C52222", "#FCE5E5", indice);
-                        table.Cell().Element(cell => CeldaRegistro(cell, indice)).AlignRight().Text(Mostrar(item.Reportan));
+                        table.Cell().Element(cell => CeldaRegistro(cell, indice)).AlignCenter().Text(Mostrar(item.Reportan));
                     }
                 });
             });
@@ -267,24 +275,23 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
 
         private static IContainer CeldaRegistro(IContainer cell, int indice) =>
             cell.Background(indice % 2 == 0 ? Colors.White : "#FAFBFD")
-                .BorderBottom(0.5f).BorderColor("#E6EBF2").PaddingHorizontal(5).PaddingVertical(6);
+                .BorderBottom(0.5f).BorderColor("#E6EBF2").PaddingHorizontal(5).PaddingVertical(6).AlignCenter();
 
         private static void EtiquetaCalificacion(IContainer cell, string? calificacion)
         {
-            var (texto, color, fondo) = EstiloCalificacion(calificacion);
-            cell.AlignLeft().Element(pill => pill.Background(fondo).CornerRadius(4).PaddingHorizontal(5).PaddingVertical(2)
-                .Text(texto).FontSize(7).Bold().FontColor(color));
+            var (texto, color) = EstiloCalificacion(calificacion);
+            cell.AlignCenter().Text(texto).FontSize(7).Bold().FontColor(color);
         }
 
-        private static (string Texto, string Color, string Fondo) EstiloCalificacion(string? valor)
+        private static (string Texto, string Color) EstiloCalificacion(string? valor)
         {
             var texto = Mostrar(valor).ToUpperInvariant();
-            if (texto.Contains("NOR") || texto == "0") return (texto, "#00875A", "#E5F5EF");
-            if (texto.Contains("CPP") || texto == "1") return (texto, "#9A6700", "#FFF4D6");
-            if (texto.Contains("DEF") || texto == "2") return (texto, "#B54708", "#FFF0E5");
-            if (texto.Contains("DUD") || texto == "3") return (texto, "#C43232", "#FDECEC");
-            if (texto.Contains("PER") || texto == "4") return (texto, "#C52222", "#FCE5E5");
-            return (texto, "#68778D", "#F1F3F6");
+            if (texto.Contains("NOR") || texto == "0") return (texto, "#00875A");
+            if (texto.Contains("CPP") || texto == "1") return (texto, "#9A6700");
+            if (texto.Contains("DEF") || texto == "2") return (texto, "#B54708");
+            if (texto.Contains("DUD") || texto == "3") return (texto, "#C43232");
+            if (texto.Contains("PER") || texto == "4") return (texto, "#C52222");
+            return (texto, "#68778D");
         }
 
         private static void AgregarDeudasVista(ColumnDescriptor column, BuscadorHistorialResponse resultado)
@@ -313,10 +320,10 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     table.Header(header =>
                     {
                         header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                            .PaddingHorizontal(7).PaddingVertical(7).Text("PERIODO").FontSize(7).FontColor("#60748F");
+                            .PaddingHorizontal(7).PaddingVertical(7).AlignCenter().Text("PERIODO").FontSize(7).FontColor("#60748F");
                         foreach (var titulo in new[] { "Entidad", "Tipo de deuda", "Calificación", "Días", "Saldo" })
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                                .PaddingHorizontal(7).PaddingVertical(7).Text(titulo.ToUpperInvariant()).FontSize(7).FontColor("#60748F");
+                                .PaddingHorizontal(7).PaddingVertical(7).AlignCenter().Text(titulo.ToUpperInvariant()).FontSize(7).FontColor("#60748F");
                     });
                     foreach (var deuda in deudas)
                     {
@@ -325,12 +332,12 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.TipoDeuda));
                         table.Cell().Element(cell => CeldaRegistro(cell, deudas.IndexOf(deuda)))
                             .Element(cell => EtiquetaCalificacion(cell, deuda.Calificacion));
-                        table.Cell().Element(CeldaTabla).AlignRight().Text(deuda.Dias?.ToString(Cultura) ?? "—");
-                        table.Cell().Element(CeldaTabla).AlignRight().Text(FormatearMoneda(deuda.Saldo)).Bold();
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? "—");
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(FormatearMoneda(deuda.Saldo)).Bold();
                     }
-                    table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(7).AlignRight()
+                    table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(7).AlignCenter()
                         .Text("TOTAL").FontSize(7.5f).Bold().FontColor(ColorTexto);
-                    table.Cell().Background("#F4F7FB").Padding(7).AlignRight()
+                    table.Cell().Background("#F4F7FB").Padding(7).AlignCenter()
                         .Text(FormatearMoneda(totalSaldo)).FontSize(7.5f).Bold().FontColor(ColorTexto);
                 });
             });
@@ -374,27 +381,27 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     {
                         foreach (var titulo in new[] { "PERIODO", "ENTIDAD", "TIPO DE DEUDA", "DÍAS", "CLASIFICACIÓN", "SALDO" })
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                                .PaddingHorizontal(5).PaddingVertical(6).Text(titulo).FontSize(6.5f).Bold().FontColor("#536176");
+                                .PaddingHorizontal(5).PaddingVertical(6).AlignCenter().Text(titulo).FontSize(6.5f).Bold().FontColor("#536176");
                     });
                     foreach (var deuda in deudas)
                     {
                         table.Cell().Element(CeldaTabla).Text(FormatearPeriodo(deuda.Periodo));
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.Entidad)).Bold();
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.TipoDeuda)).FontColor("#68778D");
-                        table.Cell().Element(CeldaTabla).AlignRight().Text(deuda.Dias?.ToString(Cultura) ?? "—");
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? "—");
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.Calificacion));
-                        table.Cell().Element(CeldaTabla).AlignRight().Text(FormatearMoneda(deuda.Saldo)).Bold().FontColor(ColorPrimario);
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(FormatearMoneda(deuda.Saldo)).Bold().FontColor(ColorPrimario);
                     }
-                    table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(6).AlignRight()
+                    table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(6).AlignCenter()
                         .Text("TOTAL SALDO").FontSize(7).Bold().FontColor(ColorPrimario);
-                    table.Cell().Background("#F4F7FB").Padding(6).AlignRight()
+                    table.Cell().Background("#F4F7FB").Padding(6).AlignCenter()
                         .Text(FormatearMoneda(totalSaldo)).FontSize(7).Bold().FontColor(ColorPrimario);
                 });
             });
         }
 
         private static IContainer CeldaTabla(IContainer cell) =>
-            cell.BorderBottom(0.5f).BorderColor("#E6EBF2").PaddingHorizontal(5).PaddingVertical(6);
+            cell.BorderBottom(0.5f).BorderColor("#E6EBF2").PaddingHorizontal(5).PaddingVertical(6).AlignCenter();
 
         private static void EncabezadoTarjeta(ColumnDescriptor card, string titulo, int cantidad)
         {
@@ -510,7 +517,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     {
                         foreach (var tituloColumna in encabezados)
                             header.Cell().Background(ColorGrisSuave).BorderBottom(1).BorderColor(ColorBorde)
-                                .PaddingHorizontal(5).PaddingVertical(6).Text(tituloColumna.ToUpperInvariant())
+                                .PaddingHorizontal(5).PaddingVertical(6).AlignCenter().Text(tituloColumna.ToUpperInvariant())
                                 .FontSize(6.5f).Bold().FontColor("#536176");
                     });
                     for (var numeroFila = 0; numeroFila < filas.Count; numeroFila++)

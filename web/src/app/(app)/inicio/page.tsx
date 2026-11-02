@@ -23,9 +23,9 @@ export default function Inicio() {
   function buscar(e: FormEvent) {
     e.preventDefault();
     const v = texto.replace(/\s/g, '');
-    if (/^\d{8}$/.test(v)) router.push(`/personas?dni=${v}`);
+    if (/^\d{8}$/.test(v)) router.push(`/personas/segmento?dni=${v}`);
     else if (/^20\d{9}$/.test(v)) router.push(`/empresas?ruc=${v}`);
-    else if (/^9\d{8}$/.test(v)) router.push(`/personas?telefono=${v}`);
+    else if (/^9\d{8}$/.test(v)) router.push(`/personas/segmento?telefono=${v}`);
     else setAviso('Escribe un DNI (8 dígitos), un RUC de empresa (11 dígitos, inicia con 20) o un celular (9 dígitos).');
   }
 

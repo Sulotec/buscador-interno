@@ -4,6 +4,6 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
 {
     public interface IPersonaPdfService
     {
-        byte[] Generar(BuscadorHistorialResponse resultado);
+        byte[] Generar(BuscadorHistorialResponse resultado, string usuarioDescarga);
     }
 }

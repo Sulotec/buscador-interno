@@ -8,11 +8,11 @@ import { Boton } from '@/components/ui';
 import clsx from 'clsx';
 
 export function BarraBusqueda({
-  etiqueta, placeholder, valorInicial = '', validar, alBuscar, alCambiarValor, cargando, numerica = true, longitudMaxima, prefijo,
+  etiqueta, placeholder, valorInicial = '', validar, alBuscar, alCambiarValor, cargando, numerica = true, longitudMaxima, prefijo, iconoAccion,
   mayusculas = false, sinEspacios = false,
 }: {
   etiqueta: string; placeholder: string; valorInicial?: string; numerica?: boolean; cargando?: boolean;
-  longitudMaxima?: number; prefijo?: ReactNode; mayusculas?: boolean; sinEspacios?: boolean;
+  longitudMaxima?: number; prefijo?: ReactNode; iconoAccion?: ReactNode; mayusculas?: boolean; sinEspacios?: boolean;
   validar: (v: string) => string | null; alBuscar: (v: string) => void; alCambiarValor: (v: string) => void;
 }) {
   const valor = valorInicial;
@@ -54,7 +54,7 @@ export function BarraBusqueda({
         </span>
         {error && <span className="mt-1 block text-xs text-peligro">{error}</span>}
       </label>
-      <Boton type="submit" cargando={cargando} className="h-10 px-6">Consultar</Boton>
+      <Boton type="submit" disabled={cargando} className="h-10 px-6">{iconoAccion ?? <Search className="size-4" />}Consultar</Boton>
     </form>
   );
 }

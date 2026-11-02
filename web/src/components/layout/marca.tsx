@@ -1,5 +1,7 @@
 // Logo de Sulotec + nombre del producto.
-export function Marca({ claro = true }: { claro?: boolean }) {
+import clsx from 'clsx';
+
+export function Marca({ claro = true, compacto = false }: { claro?: boolean; compacto?: boolean }) {
   return (
     <span className="flex items-center gap-2.5">
       <svg viewBox="0 0 64 64" className="size-8 shrink-0" aria-hidden>
@@ -7,7 +9,7 @@ export function Marca({ claro = true }: { claro?: boolean }) {
         <path d="M42 22c-2-3-6-5-10-5-6 0-10 3-10 8 0 11 20 6 20 16 0 5-4 8-10 8-5 0-9-2-11-6" fill="none" stroke={claro ? '#1b4589' : '#fff'} strokeWidth="5.5" strokeLinecap="round" />
         <circle cx="50" cy="50" r="4.5" fill="#ed1c24" />
       </svg>
-      <span className="leading-tight">
+      <span className={clsx('overflow-hidden whitespace-nowrap leading-tight transition-all duration-300', compacto ? 'max-w-0 opacity-0' : 'max-w-40 opacity-100')}>
         <span className={claro ? 'block text-[15px] font-bold text-white' : 'block text-[15px] font-bold text-azul'}>Buscador Interno</span>
         <span className={claro ? 'block text-[11px] text-azul-50' : 'block text-[11px] text-gris'}>Sulotec</span>
       </span>

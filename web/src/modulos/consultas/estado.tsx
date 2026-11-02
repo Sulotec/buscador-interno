@@ -14,6 +14,21 @@ type ResultadoBusquedaGlobalPersona =
   | { tipo: 'nombres'; valor: ResultadoNombre[] }
   | null;
 type FichaPersonaGlobal = { tipo: TipoDocumento; valor: ResultadoPersona };
+type EstadoBusquedaSegmento = {
+  modo: ModoPersona;
+  tipoDocumento: TipoDocumento;
+  entradaDocumento: string;
+  entradaTelefono: string;
+  persona: ResultadoPersona | null;
+  consultado: { tipo: TipoDocumento; numero: string } | null;
+  reniec: ResultadoReniec | null;
+  telefono: ResultadoTelefono | null;
+  vista: 'local' | null;
+  mostrarResultadosPorTab: boolean;
+  categoriaResultados: string;
+  documentoTelefonoSeleccionado: string | null;
+  cargando: boolean;
+};
 type DatosBusquedaPersona = {
   vista: 'global' | 'local' | null;
   apellidoPaterno: string;
@@ -30,6 +45,7 @@ type DatosBusquedaPersona = {
   categoriaResultados: string;
   mostrarResultadosPorTab: boolean;
   cargandoLocal: boolean;
+  segmento: EstadoBusquedaSegmento;
   global: {
     tipo: TipoBusquedaGlobalPersona;
     documentos: Record<TipoDocumento, string>;
@@ -45,6 +61,7 @@ type DatosBusquedaPersona = {
     fichasPorTipo: Partial<Record<TipoBusquedaGlobalPersona, FichaPersonaGlobal>>;
     telefonoSeleccionado: string | null;
     cargando: boolean;
+    cargandoFicha: boolean;
   };
 };
 
@@ -103,7 +120,8 @@ export function ProveedorEstadoConsultas({ children }: { children: ReactNode }) 
     apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultadosNombres: null, documentoNombreSeleccionado: '',
     dniFallecido: '', apellidoPaternoFallecido: '', apellidoMaternoFallecido: '', prenombresFallecido: '', resultadoFallecido: null,
     documentoTelefonoSeleccionado: null, categoriaResultados: 'telefonos', mostrarResultadosPorTab: false, cargandoLocal: false,
-    global: { tipo: 'DNI', documentos: { DNI: '', CE: '', RUC: '', PASAPORTE: '' }, dniFallecido: '', telefono: '', apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultado: null, resultadosPorTipo: {}, personaNombreSeleccionada: '', personasNombreSeleccionadas: {}, fichasPorTipo: {}, telefonoSeleccionado: null, cargando: false },
+    segmento: { modo: 'documento', tipoDocumento: 'DNI', entradaDocumento: '', entradaTelefono: '', persona: null, consultado: null, reniec: null, telefono: null, vista: null, mostrarResultadosPorTab: false, categoriaResultados: 'telefonos', documentoTelefonoSeleccionado: null, cargando: false },
+    global: { tipo: 'DNI', documentos: { DNI: '', CE: '', RUC: '', PASAPORTE: '' }, dniFallecido: '', telefono: '', apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultado: null, resultadosPorTipo: {}, personaNombreSeleccionada: '', personasNombreSeleccionadas: {}, fichasPorTipo: {}, telefonoSeleccionado: null, cargando: false, cargandoFicha: false },
   });
   const [modoEmpresa, setModoEmpresa] = useState<ModoEmpresa>('ruc');
   const [entradaRuc, setEntradaRuc] = useState('');

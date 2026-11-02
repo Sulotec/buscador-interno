@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, type FormEvent } from 'react';
-import { Check, ChevronDown, Search, UserRound, X } from 'lucide-react';
+import { Check, ChevronDown, HeartCrack, IdCard, Phone, Search, UserRound, X } from 'lucide-react';
 import { Aviso, Boton, Cargando, Tarjeta, Vacio } from '@/components/ui';
 import { ErrorApi } from '@/lib/api';
 import { fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
@@ -47,7 +47,7 @@ function detectarTipoDocumento(documento: string): TipoDocumento | null {
   return null;
 }
 
-export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, alCambiarCarga, alEncontrarDocumento, alEncontrarTelefono, alLimpiarTelefono, alFiltrarTelefono, alInteractuar }: {
+export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, alCambiarCarga, alEncontrarDocumento, alEncontrarTelefono, alLimpiarTelefono, alFiltrarTelefono }: {
   activa: boolean;
   documentoTelefonoSeleccionado: string | null;
   alCambiarCarga: (cargando: boolean) => void;
@@ -55,7 +55,6 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
   alEncontrarTelefono: (resultado: ResultadoTelefono) => void;
   alLimpiarTelefono: () => void;
   alFiltrarTelefono: (documento: string | null) => void;
-  alInteractuar: () => void;
 }) {
   const { actualizarSaldo } = useSesion();
   const selectorBusquedaRef = useRef<HTMLDetailsElement>(null);
@@ -111,6 +110,7 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
     }
     setError('');
     setCargando(true);
+    actualizarGlobal({ cargandoFicha: true });
     alCambiarCarga(true);
     try {
       const respuesta = await servicioPersonas.porDocumento(tipoDocumento, valor);
@@ -121,6 +121,7 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
       setError(e instanceof ErrorApi || e instanceof Error ? e.message : 'No se pudo cargar la información del cliente.');
     } finally {
       setCargando(false);
+      actualizarGlobal({ cargandoFicha: false });
       alCambiarCarga(false);
       actualizarSaldo();
     }
@@ -147,12 +148,27 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
         setResultado({ tipo, valor: respuesta });
         alEncontrarTelefono(respuesta);
         setFiltroCliente('');
+        const clientes = agruparPorDocumento(respuesta.registros);
+        if (clientes.length === 1) {
+          const cliente = clientes[0];
+          const seleccionado = cliente.documento?.trim() || cliente.clave;
+          actualizarGlobal({ telefonoSeleccionado: seleccionado });
+          alFiltrarTelefono(seleccionado);
+          if (cliente.documento) await cargarFichaDocumento(cliente.documento, true);
+        }
       } else if (tipo === 'nombres') {
         if (apePat.trim().length < 2) throw new Error('Ingresa un apellido paterno de al menos 2 letras.');
-        if (!/^[\p{L}]+$/u.test(apePat.trim()) || (apeMat.trim() && !/^[\p{L}]+$/u.test(apeMat.trim())) || (nombres.trim() && !/^[\p{L}\s]+$/u.test(nombres.trim()))) {
-          throw new Error('Usa solo letras en los apellidos y nombres.');
+        if (apeMat.trim().length < 2) throw new Error('Ingresa un apellido materno de al menos 2 letras.');
+        const apellidoValido = /^[\p{L}\p{M}]+(?:[ '\u2019-][\p{L}\p{M}]+)*$/u;
+        if (!apellidoValido.test(apePat.trim()) || !apellidoValido.test(apeMat.trim()) || (nombres.trim() && !/^[\p{L}\p{M}\s]+$/u.test(nombres.trim()))) {
+          throw new Error('Usa texto en los apellidos; se permiten apellidos compuestos como «De la Cruz».');
         }
-        setResultado({ tipo, valor: await servicioPersonas.porNombres(apePat.trim(), apeMat.trim(), nombres.trim()) });
+        const personas = await servicioPersonas.porNombres(apePat.trim(), apeMat.trim(), nombres.trim());
+        setResultado({ tipo, valor: personas });
+        if (personas.length === 1) {
+          setPersonaNombreSeleccionada(personas[0].documento);
+          await cargarFichaDocumento(personas[0].documento, false, true);
+        }
       } else if (tipo === 'fallecidos') {
         if (!/^\d{8}$/.test(documento)) throw new Error('El DNI debe tener exactamente 8 dígitos.');
         const respuesta = await servicioPersonas.porDocumento('DNI', documento);
@@ -206,7 +222,7 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
         <h2 id="busqueda-global-titulo" className="text-sm font-semibold text-texto">Búsqueda global</h2>
         <p className="mt-0.5 text-xs text-gris">Elige un criterio y realiza una consulta independiente.</p>
       </div>
-      <form onSubmit={buscar} onFocusCapture={alInteractuar} className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-end">
+      <form onSubmit={buscar} className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
         <div className="relative block">
           <span className="mb-1.5 block text-sm font-medium text-texto">Buscar por</span>
           <details ref={selectorBusquedaRef} className="group relative" onKeyDown={(evento) => {
@@ -228,53 +244,50 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
             </div>}
           </details>
         </div>
-        
+
         <div className={tipo === 'nombres'
           ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.3fr_auto] lg:items-end'
           : 'grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'}>
           {tipo === 'nombres' ? <>
-            <label className="block text-sm font-medium text-texto">Apellido paterno<input disabled={cargando} className="input mt-1.5 disabled:cursor-not-allowed disabled:bg-fondo disabled:opacity-60" value={apePat} onChange={(e) => setApePat(e.target.value)} maxLength={50} required placeholder="Ej. García" /></label>
-            <label className="block text-sm font-medium text-texto">Apellido materno<input disabled={cargando} className="input mt-1.5 disabled:cursor-not-allowed disabled:bg-fondo disabled:opacity-60" value={apeMat} onChange={(e) => setApeMat(e.target.value)} maxLength={50} placeholder="Opcional" /></label>
+            <label className="block text-sm font-medium text-texto">Apellido paterno <span className="font-normal text-gris">(obligatorio)</span><input disabled={cargando} className="input mt-1.5 disabled:cursor-not-allowed disabled:bg-fondo disabled:opacity-60" value={apePat} onChange={(e) => setApePat(e.target.value)} maxLength={50} minLength={2} required placeholder="Ej. García" /></label>
+            <label className="block text-sm font-medium text-texto">Apellido materno <span className="font-normal text-gris">(obligatorio)</span><input disabled={cargando} className="input mt-1.5 disabled:cursor-not-allowed disabled:bg-fondo disabled:opacity-60" value={apeMat} onChange={(e) => setApeMat(e.target.value)} maxLength={50} minLength={2} required placeholder="Ej. López" /></label>
             <label className="block text-sm font-medium text-texto">Nombres<input disabled={cargando} className="input mt-1.5 disabled:cursor-not-allowed disabled:bg-fondo disabled:opacity-60" value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={100} placeholder="Opcional" /></label>
-          </> : 
-          <label className="block text-sm font-medium text-texto">
+          </> : <label className="block text-sm font-medium text-texto">
             {tipo === 'telefono' ? 'Teléfono' : tipo === 'fallecidos' ? 'DNI' : etiqueta[tipo]}
-            <input
-              className="input mt-1.5"
-              disabled={cargando}
-              value={tipo === 'telefono' ? telefono : documento}
+            <input className="input mt-1.5" disabled={cargando} value={tipo === 'telefono' ? telefono : documento}
               onChange={(e) => tipo === 'telefono'
                 ? setTelefono(e.target.value.replace(/\D/g, '').slice(0, 9))
                 : setDocumento(tipo === 'PASAPORTE' ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) : e.target.value.replace(/\D/g, '').slice(0, tipo === 'fallecidos' ? 8 : DOCUMENTOS[tipo as TipoDocumento].longitudMaxima))}
               inputMode={tipo === 'PASAPORTE' ? 'text' : 'numeric'}
               maxLength={tipo === 'telefono' ? 9 : tipo === 'fallecidos' ? 8 : DOCUMENTOS[tipo as TipoDocumento]?.longitudMaxima}
-              required placeholder={tipo === 'telefono' ? '9 dígitos' : tipo === 'fallecidos' ? 'DNI de 8 dígitos' : DOCUMENTOS[tipo as TipoDocumento].descripcion}
-            />
-          </label>
-          }
+              required placeholder={tipo === 'telefono' ? '9 dígitos' : tipo === 'fallecidos' ? 'DNI de 8 dígitos' : DOCUMENTOS[tipo as TipoDocumento].descripcion} />
+          </label>}
           <div className="flex gap-2 sm:justify-end">
-            <Boton type="submit" cargando={cargando} disabled={cargando} className={tipo === 'nombres' ? 'h-10 w-full lg:w-36' : 'h-10 w-full sm:w-36'}><Search className="size-4" />Buscar</Boton>
+            <Boton type="submit" cargando={cargando} disabled={cargando || (tipo === 'nombres' && (apePat.trim().length < 2 || apeMat.trim().length < 2))} className={tipo === 'nombres' ? 'h-10 w-full lg:w-36' : 'h-10 w-full sm:w-36'}>{tipo === 'telefono' ? <Phone className="size-4" /> : tipo === 'nombres' ? <UserRound className="size-4" /> : tipo === 'fallecidos' ? <HeartCrack className="size-4" /> : <IdCard className="size-4" />}Consultar</Boton>
           </div>
+          {tipo === 'nombres' && <p className="col-span-full text-xs text-gris">Completa ambos apellidos con al menos 2 letras. Se aceptan apellidos compuestos, como «De la Cruz»; los nombres son opcionales.</p>}
         </div>
       </form>
 
-      {cargando && <Cargando texto="Consultando información..." />}
+      {cargando && !global.cargandoFicha && <Tarjeta sinRelleno className="min-h-28">
+        <Cargando texto="Consultando información..." />
+      </Tarjeta>}
       {error && <Aviso tono="error">{error}</Aviso>}
       {activa && !cargando && !error && !resultado && <Vacio icono={<Search className="size-5" />} titulo="Los resultados aparecerán aquí">
-        Selecciona un criterio, ingresa el dato y pulsa Buscar para iniciar la consulta.
+        Selecciona un criterio, ingresa el dato y pulsa Consultar para iniciar la búsqueda.
       </Vacio>}
       {resultado && resultado.tipo !== 'documento' && <Tarjeta className="space-y-2" sinRelleno>
         {resultado.tipo === 'telefono' && <div className="space-y-3">
           <div className="flex justify-end">
-            <Boton type="button" variante="secundario" disabled={cargando} onClick={() => setMostrarClientes(true)}>
+            {registrosTelefono.length > 1 && <Boton type="button" variante="secundario" disabled={cargando} onClick={() => setMostrarClientes(true)}>
               <UserRound className="size-4" />Filtrar y elegir cliente
-            </Boton>
+            </Boton>}
           </div>
 
           {mostrarClientes && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!cargando && e.target === e.currentTarget) setMostrarClientes(false); }}>
             <section role="dialog" aria-modal="true" aria-labelledby="clientes-telefono-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
               <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
-                <div><h3 id="clientes-telefono-titulo" className="font-semibold text-texto">Elegir cliente asociado</h3><p className="mt-1 text-xs text-gris">Filtra por nombre o documento. Se muestran {registrosTelefono.length} clientes/documentos únicos.</p></div>
+                <div><h3 id="clientes-telefono-titulo" className="font-semibold text-texto">Elegir cliente asociado</h3><p className="mt-1 text-xs text-gris">Filtra por nombre o documento. Al elegir un cliente, esta ventana se cerrará y la información se filtrará por su documento. Se muestran {registrosTelefono.length} clientes/documentos únicos.</p></div>
                 <button type="button" disabled={cargando} aria-label="Cerrar" onClick={() => setMostrarClientes(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:cursor-not-allowed disabled:opacity-50"><X className="size-4" /></button>
               </header>
               <div className="border-b border-borde p-4">
@@ -297,29 +310,30 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
         {resultado.tipo === 'nombres' && <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-texto">{resultado.valor.length} coincidencias encontradas</p>
-            <Boton type="button" variante="secundario" disabled={cargando || !resultado.valor.length} onClick={() => { setFiltroCliente(''); setMostrarClientes(true); }}>
+            {resultado.valor.length > 1 && <Boton type="button" variante="secundario" disabled={cargando} onClick={() => { setFiltroCliente(''); setMostrarClientes(true); }}>
               <UserRound className="size-4" />Filtrar y elegir persona
-            </Boton>
+            </Boton>}
           </div>
+          {personaNombreSeleccionada && <p role="status" className="text-xs text-gris">Mostrando los datos de la persona seleccionada, filtrados por su documento.</p>}
           {!resultado.valor.length && <Vacio icono={<UserRound className="size-5" />} titulo="No encontramos coincidencias">
             Prueba con otra combinación de apellidos y nombres.
           </Vacio>}
           {mostrarClientes && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!cargando && e.target === e.currentTarget) setMostrarClientes(false); }}>
             <section role="dialog" aria-modal="true" aria-labelledby="personas-nombres-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
               <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
-                <div><h3 id="personas-nombres-titulo" className="font-semibold text-texto">Elegir persona</h3><p className="mt-1 text-xs text-gris">Filtra por apellidos, nombres o documento. Se encontraron {resultado.valor.length} coincidencias.</p></div>
+                <div><h3 id="personas-nombres-titulo" className="font-semibold text-texto">Elegir persona</h3><p className="mt-1 text-xs text-gris">El apellido paterno «{apePat.trim()}» ya está aplicado. Filtra por apellido materno, nombres o documento; al elegir, verás sus datos filtrados por documento. {resultado.valor.length} coincidencias.</p></div>
                 <button type="button" disabled={cargando} aria-label="Cerrar" onClick={() => setMostrarClientes(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:cursor-not-allowed disabled:opacity-50"><X className="size-4" /></button>
               </header>
               <div className="border-b border-borde p-4">
                 <div className="flex gap-2">
-                  <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar personas</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={cargando} value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className="input input--icono disabled:cursor-not-allowed disabled:bg-fondo" placeholder="Buscar por apellidos, nombres o documento" /></label>
+                  <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar por apellido materno, nombres o documento</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={cargando} value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className="input input--icono disabled:cursor-not-allowed disabled:bg-fondo" placeholder="Apellido materno, nombres o documento" /></label>
                   <Boton type="button" variante="secundario" disabled={cargando} onClick={() => setFiltroCliente('')}>Limpiar</Boton>
                 </div>
               </div>
               <ul className="min-h-0 divide-y divide-borde overflow-y-auto">
                 {resultadosNombresFiltrados.map((persona) => <li key={persona.documento}>
-                  <button type="button" disabled={cargando} aria-pressed={persona.documento === personaNombreSeleccionada} onClick={() => { setPersonaNombreSeleccionada(persona.documento); void cargarFichaDocumento(persona.documento, false, true); }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:opacity-50 ${persona.documento === personaNombreSeleccionada ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
-                    <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{persona.nombreCompleto}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(persona.documento)}</span></span>{persona.documento === personaNombreSeleccionada && <Check aria-label="Persona seleccionada" className="size-4 shrink-0 text-azul" />}</span><span className="shrink-0 text-xs font-medium text-azul">Ver tablas</span>
+                  <button type="button" disabled={cargando} aria-pressed={persona.documento === personaNombreSeleccionada} onClick={() => { setPersonaNombreSeleccionada(persona.documento); setMostrarClientes(false); void cargarFichaDocumento(persona.documento, false, true); }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:opacity-50 ${persona.documento === personaNombreSeleccionada ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
+                    <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{persona.nombreCompleto}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(persona.documento)}</span></span>{persona.documento === personaNombreSeleccionada && <Check aria-label="Persona seleccionada" className="size-4 shrink-0 text-azul" />}</span>
                   </button>
                 </li>)}
                 {!resultadosNombresFiltrados.length && <li className="px-5 py-8 text-center text-sm text-gris">No hay personas que coincidan con el filtro.</li>}

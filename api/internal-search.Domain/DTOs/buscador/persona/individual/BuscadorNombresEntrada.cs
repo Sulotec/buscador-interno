@@ -8,9 +8,9 @@ namespace internal_search.Domain.DTOs.buscador.persona.individual
         [Required, StringLength(50, MinimumLength = 2)]
         [RegularExpression(@"^[\p{L}\p{M}][\p{L}\p{M}'’ -]*$", ErrorMessage = "Usa solo letras, espacios, apóstrofes o guiones.")]
         public string ApePat { get; set; } = string.Empty;
-        [StringLength(50)]
+        [Required(ErrorMessage = "El apellido materno es obligatorio."), StringLength(50, MinimumLength = 2, ErrorMessage = "El apellido materno debe tener entre 2 y 50 caracteres.")]
         [RegularExpression(@"^[\p{L}\p{M}][\p{L}\p{M}'’ -]*$", ErrorMessage = "Usa solo letras, espacios, apóstrofes o guiones.")]
-        public string? ApeMat { get; set; }
+        public string ApeMat { get; set; } = string.Empty;
         [StringLength(100)]
         [RegularExpression(@"^[\p{L}\p{M}][\p{L}\p{M}'’ -]*$", ErrorMessage = "Usa solo letras, espacios, apóstrofes o guiones.")]
         public string? Nombres { get; set; }

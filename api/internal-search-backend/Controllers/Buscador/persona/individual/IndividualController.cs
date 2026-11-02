@@ -2,6 +2,7 @@ using internal_search.Domain.DTOs.buscador.persona.individual;
 using internal_search.Domain.DTOs.buscador.persona.masivos;
 using internal_search.Domain.Entities;
 using internal_search_backend.Business.Services.Buscador.personas.individual;
+using internal_search_backend.Business.Services.Auditoria;
 using internal_search_backend.Business.Services.Reniec;
 using internal_search_backend.Business.Services.Tokens;
 using internal_search_backend.Security;
@@ -22,19 +23,22 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
         private readonly IFallecidosService _fallecidosService;
         private readonly ITokenService _tokens;
         private readonly IReniecService _reniec;
+        private readonly IAuditoriaService _auditoria;
 
         public BuscadorController(
             IIndividualService buscadorService,
             IPersonaPdfService personaPdfService,
             IFallecidosService fallecidosService,
             ITokenService tokens,
-            IReniecService reniec)
+            IReniecService reniec,
+            IAuditoriaService auditoria)
         {
             _buscadorService = buscadorService;
             _personaPdfService = personaPdfService;
             _fallecidosService = fallecidosService;
             _tokens = tokens;
             _reniec = reniec;
+            _auditoria = auditoria;
         }
 
         /// <summary>
@@ -67,7 +71,14 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
             [FromBody] BuscadorHistorialResponse resultado,
             CancellationToken ct)
         {
-            var pdf = _personaPdfService.Generar(resultado);
+            var contexto = this.Contexto();
+            var pdf = _personaPdfService.Generar(resultado, contexto.Login);
+            await _auditoria.RegistrarAsync(
+                contexto,
+                "DESCARGA_PDF_PERSONA",
+                "Archivo",
+                $"ficha-{resultado.Documento}.pdf",
+                $"PDF de consulta descargado para el documento {resultado.Documento}.");
 
             return File(pdf, "application/pdf", $"ficha-{resultado.Documento}.pdf");
         }
