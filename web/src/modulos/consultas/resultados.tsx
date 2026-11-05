@@ -1,9 +1,10 @@
 'use client';
 // Presentacion de resultados: resumen + una tarjeta por seccion (deudas, lineas, calificaciones, laboral, telefonos).
 import { useEffect, useState, type ReactNode } from 'react';
-import { Banknote, Briefcase, Building2, CalendarDays, CreditCard, Gauge, IdCard, LucideIcon, Phone, PhoneCall, Smartphone, UserRound } from 'lucide-react';
+import { Banknote, Briefcase, Building2, CalendarDays, ContactRound, CreditCard, Fingerprint, Gauge, Hash, IdCard, LucideIcon, MapPin, Phone, PhoneCall, Smartphone, UserRound, UsersRound } from 'lucide-react';
 import { Chip, Tabla, Tarjeta, type Columna } from '@/components/ui';
 import { fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
+import type { PersonaOperador } from '@/modulos/personas/tipos';
 import type { Calificacion, Deuda, LineaCredito, Movil, Sueldo } from './tipos';
 import clsx from 'clsx';
 
@@ -95,6 +96,27 @@ const colSueldos: Columna<Sueldo>[] = [
   { titulo: 'Rango', celda: (s) => fTexto(s.rangoSueldo) },
   { titulo: 'Nivel', celda: (s) => fTexto(s.nivelIngreso) },
 ];
+const colPersonas: Columna<PersonaOperador>[] = [
+  { titulo: 'ID', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris"><Hash aria-hidden className="size-3.5 shrink-0" /><span className="numeros">{fNumero(p.id)}</span></span> },
+  { titulo: 'Tipo doc.', celda: (p) => <span className="inline-flex items-center gap-1.5"><IdCard aria-hidden className="size-3.5 shrink-0 text-gris" /><span className="rounded bg-[#f1f3f6] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-gris">{fTexto(p.tipoDoc)}</span></span> },
+  { titulo: 'DNI', celda: (p) => <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide"><Fingerprint aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.dni)}</span> },
+  { titulo: 'Fecha nacimiento', celda: (p) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-gris"><CalendarDays aria-hidden className="size-3.5 shrink-0" />{fFecha(p.fechaNacimiento)}</span> },
+  { titulo: 'Apellido paterno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UserRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apePat)}</span> },
+  { titulo: 'Apellido materno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UsersRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apeMat)}</span> },
+  { titulo: 'Prenombres', celda: (p) => <span className="inline-flex items-center gap-1.5 font-semibold text-texto"><ContactRound aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.prenombres)}</span> },
+  { titulo: 'UBIGEO RENIEC', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris"><MapPin aria-hidden className="size-3.5 shrink-0" /><span className="numeros">{fTexto(p.ubigeoReniec)}</span></span> },
+];
+
+export function SeccionPersonas({ filas }: { filas?: PersonaOperador[] | null }) {
+  const personas = filas ?? [];
+
+  return (
+    <Seccion titulo="Personas" icono={<UserRound className="size-[18px]" />} cantidad={personas.length}>
+      <Tabla columnas={colPersonas} filas={personas} clave={(p) => p.id} vacio="No hay registros en Operador.Personas para este filtro." />
+    </Seccion>
+  );
+}
+
 export const colMoviles: Columna<Movil>[] = [
   { titulo: 'Periodo', celda: (m) => <PeriodoCelda periodo={m.periodo} /> },
   { titulo: 'Operadora', celda: (m) => <span className="inline-flex items-start gap-2"><Building2 aria-hidden className="mt-1 size-3.5 shrink-0 text-gris" /><Operadora nombre={m.empresaOperadora} /></span>, className: 'min-w-48' },
@@ -284,9 +306,9 @@ function soloUltimoPeriodo<T>(filas: T[], periodoDe: (f: T) => string): T[] {
 const periodoTipado = (f: { periodo?: string | null }) => f.periodo ?? '';
 const periodoLibre = (f: Record<string, unknown>) => String(f.periodo ?? '');
 
-export type CategoriaSeccionResultado = 'deudas' | 'lineas' | 'calificaciones' | 'laboral' | 'telefonos';
+export type CategoriaSeccionResultado = 'deudas' | 'lineas' | 'calificaciones' | 'laboral' | 'telefonos' | 'personas';
 
-export function SeccionesResultado({ s, tipadas = true, categoria }: { s: Secciones; tipadas?: boolean; categoria?: CategoriaSeccionResultado }) {
+export function SeccionesResultado({ s, tipadas = true, categoria, ocultarTelefonos = false }: { s: Secciones; tipadas?: boolean; categoria?: CategoriaSeccionResultado; ocultarTelefonos?: boolean }) {
   const deudas = soloUltimoPeriodo(s.deudas, periodoTipado);
   const lineas = soloUltimoPeriodo(s.lineasCredito, periodoTipado);
   const calificaciones = soloUltimoPeriodo(s.calificaciones, periodoTipado);
@@ -311,7 +333,7 @@ export function SeccionesResultado({ s, tipadas = true, categoria }: { s: Seccio
           ? <Tabla columnas={colSueldos} filas={sueldosTipados} clave={(x, i) => `${x.periodo}-${i}`} vacio="No registra información laboral." />
           : <Tabla columnas={columnasLibres(sueldosLibres)} filas={sueldosLibres} clave={(_, i) => i} vacio="No registra información laboral." />}
       </Seccion>}
-      {(!categoria || categoria === 'telefonos') && <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={tipadas ? movilesTipados.length : movilesLibres.length}>
+      {!ocultarTelefonos && (!categoria || categoria === 'telefonos') && <Seccion titulo="Teléfonos" icono={<Phone className="size-[18px]" />} cantidad={tipadas ? movilesTipados.length : movilesLibres.length}>
         {tipadas
           ? <Tabla columnas={colMoviles} filas={movilesTipados} clave={(m, i) => `${m.telefono}-${i}`} vacio="No registra teléfonos." />
           : <Tabla columnas={columnasLibres(movilesLibres)} filas={movilesLibres} clave={(_, i) => i} vacio="No registra teléfonos." />}

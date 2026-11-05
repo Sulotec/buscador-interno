@@ -20,6 +20,7 @@ namespace internal_search.Domain.DTOs.buscador.persona.individual
     {
         public string Documento { get; set; } = string.Empty;
         public string NombreCompleto { get; set; } = string.Empty;
+        public List<PersonaOperador> Personas { get; set; } = new();
         public List<Deuda> Deudas { get; set; } = new();
         public List<LineaCredito> LineasCredito { get; set; } = new();
         public List<Calificacion> Calificaciones { get; set; } = new();

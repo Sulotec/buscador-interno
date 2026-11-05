@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<TokenSaldo> TokenSaldos { get; set; }
     public DbSet<TokenMovimiento> TokenMovimientos { get; set; }
     public DbSet<AuditoriaRegistro> Auditoria { get; set; }
+    public DbSet<ConsultaReniec> ConsultasReniec { get; set; }
 
     public DbSet<Calificacion> Calificaciones { get; set; }
     public DbSet<Deuda> Deudas { get; set; }
@@ -22,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<LineaCredito> LineaCreditos { get; set; }
     public DbSet<Sueldo> Sueldos { get; set; }
     public DbSet<Fallecidos> Fallecidos { get; set; }
+    public DbSet<PersonaOperador> PersonasOperador { get; set; }
 
     // NUEVO
     public DbSet<HistorialDescarga> HistorialDescargas { get; set; }
@@ -48,6 +50,21 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Movil>().HasNoKey();
         modelBuilder.Entity<Sueldo>().HasNoKey();
 
+        modelBuilder.Entity<PersonaOperador>(e =>
+        {
+            e.ToTable("Personas", "Operador");
+            e.HasKey(x => x.Id);
+
+            e.Property(x => x.Id).HasColumnName("ID").HasColumnType("bigint").ValueGeneratedNever();
+            e.Property(x => x.TipoDoc).HasColumnName("TIPODOC").HasMaxLength(3).IsUnicode(false);
+            e.Property(x => x.Dni).HasColumnName("DNI").HasMaxLength(15).IsUnicode(false);
+            e.Property(x => x.FechaNacimiento).HasColumnName("FECHANAC").HasColumnType("date");
+            e.Property(x => x.ApePat).HasColumnName("APE_PAT").HasMaxLength(100).IsUnicode(false);
+            e.Property(x => x.ApeMat).HasColumnName("APE_MAT").HasMaxLength(100).IsUnicode(false);
+            e.Property(x => x.Prenombres).HasColumnName("PRENOMBRES").HasMaxLength(150).IsUnicode(false);
+            e.Property(x => x.UbigeoReniec).HasColumnName("UBIGEO_RENIEC").HasMaxLength(6).IsUnicode(false);
+        });
+
         // NUEVO: historial de descargas (tabla ya creada en BD)
         modelBuilder.Entity<HistorialDescarga>(e =>
         {
@@ -65,6 +82,34 @@ public class AppDbContext : DbContext
                 .HasColumnType("datetime2")
                 .HasDefaultValueSql("SYSDATETIME()")
                 .ValueGeneratedOnAdd();
+        });
+
+        modelBuilder.Entity<ConsultaReniec>(e =>
+        {
+            e.ToTable("Consultas", "RNC");
+            e.HasKey(x => x.Dni);
+
+            e.Property(x => x.Dni).HasColumnName("DNI").HasColumnType("char(8)");
+            e.Property(x => x.PreNombres).HasColumnName("PRENOMBRES").HasMaxLength(250);
+            e.Property(x => x.ApePaterno).HasColumnName("APE_PATERNO").HasMaxLength(150);
+            e.Property(x => x.ApeMaterno).HasColumnName("APE_MATERNO").HasMaxLength(150);
+            e.Property(x => x.FechaNacimiento).HasColumnName("FECHA_NACIMIENTO").HasMaxLength(30);
+            e.Property(x => x.Sexo).HasColumnName("SEXO").HasMaxLength(30);
+            e.Property(x => x.EstadoCivil).HasColumnName("ESTADO_CIVIL").HasMaxLength(100);
+            e.Property(x => x.GradoInstruccion).HasColumnName("GRADO_INSTRUCCION").HasMaxLength(150);
+            e.Property(x => x.Restriccion).HasColumnName("RESTRICCION").HasMaxLength(200);
+            e.Property(x => x.Direccion).HasColumnName("DIRECCION").HasMaxLength(500);
+            e.Property(x => x.Distrito).HasColumnName("DISTRITO").HasMaxLength(150);
+            e.Property(x => x.Provincia).HasColumnName("PROVINCIA").HasMaxLength(150);
+            e.Property(x => x.Departamento).HasColumnName("DEPARTAMENTO").HasMaxLength(150);
+            e.Property(x => x.NombrePadre).HasColumnName("NOMBRE_PADRE").HasMaxLength(200);
+            e.Property(x => x.NombreMadre).HasColumnName("NOMBRE_MADRE").HasMaxLength(200);
+            e.Property(x => x.FechaEmision).HasColumnName("FECHA_EMISION").HasMaxLength(30);
+            e.Property(x => x.FechaCaducidad).HasColumnName("FECHA_CADUCIDAD").HasMaxLength(30);
+            e.Property(x => x.FechaFallecimiento).HasColumnName("FECHA_FALLECIMIENTO").HasMaxLength(30);
+            e.Property(x => x.Foto).HasColumnName("FOTO").HasColumnType("varbinary(max)");
+            e.Property(x => x.FechaConsultaUtc).HasColumnName("FECHA_CONSULTA_UTC")
+                .HasColumnType("datetime2(0)");
         });
     }
 }

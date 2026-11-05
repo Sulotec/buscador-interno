@@ -2,6 +2,7 @@
 
 export const LIMITE_DOCUMENTOS = 5_000;
 export const TAMANO_MAXIMO = 4_990_000; // la API acepta hasta 5 MB por peticion (incluye el formulario)
+export const TAMANO_BLOQUE_DOCUMENTOS = 500;
 
 export type TipoLista = 'personas' | 'empresas';
 

@@ -2,7 +2,8 @@
 import type { Deuda, LineaCredito, Calificacion, Sueldo, Movil } from "@/modulos/consultas/tipos";
 
 export interface ResultadoPersona {
-  esDniValido: boolean; documento: string;
+  esDniValido: boolean; documento: string; nombreCompleto?: string | null;
+  personas: PersonaOperador[];
   deudas: Deuda[]; lineasCredito: LineaCredito[]; calificaciones: Calificacion[]; sueldos: Sueldo[]; moviles: Movil[];
   fallecidos?: RegistroFallecido[];
 }
@@ -11,7 +12,13 @@ export interface ResultadoTelefono { telefono: string; documentosAsociados: numb
 
 export interface ResultadoNombre {
   documento: string; nombreCompleto: string;
+  personas: PersonaOperador[];
   deudas: Deuda[]; lineasCredito: LineaCredito[]; calificaciones: Calificacion[]; sueldos: Sueldo[]; moviles: Movil[];
+}
+
+export interface PersonaOperador {
+  id: number; tipoDoc: string | null; dni: string | null; fechaNacimiento: string | null;
+  apePat: string | null; apeMat: string | null; prenombres: string | null; ubigeoReniec: string | null;
 }
 
 export interface ReniecPersona {

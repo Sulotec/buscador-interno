@@ -11,6 +11,7 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
         public string Documento { get; set; } = string.Empty;
         public string TipoDocumento { get; set; } = string.Empty;
         public string? NombreCompleto { get; set; }
+        public List<PersonaOperador> Personas { get; set; } = new();
 
         public List<Deuda> Deudas { get; set; } = new();
         public List<LineaCredito> LineasCredito { get; set; } = new();

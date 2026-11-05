@@ -151,5 +151,6 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
 
             return Ok(resultado);
         }
+
     }
 }

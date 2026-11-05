@@ -12,6 +12,7 @@ export const servicioPersonas = {
   porNombres: (apePat: string, apeMat: string, nombres: string) =>
     api.post<ResultadoNombre[]>('api/buscador/buscar-nombres', { apePat, apeMat: apeMat || null, nombres: nombres || null }),
   reniec: (dni: string) => api.get<ResultadoReniec>(`api/buscador/reniec/${encodeURIComponent(dni)}`),
+
   buscarFallecidos: (filtros: FiltrosFallecidos) =>
     api.post<ResultadoFallecidos>('api/buscador/buscar-fallecidos', filtros),
 };

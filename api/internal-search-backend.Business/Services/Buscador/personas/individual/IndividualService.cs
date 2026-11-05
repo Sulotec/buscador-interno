@@ -30,12 +30,16 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
 
             var respuesta = new BuscadorHistorialResponse
             {
-                Documento = documento
+                Documento = documento,
+                TipoDocumento = entrada.TipoDocumento
             };
 
             // Ejecutamos las consultas de forma SECUENCIAL
             // porque utilizan el mismo AppDbContext.
 
+            var personaOperador = string.Equals(entrada.TipoDocumento, "DNI", StringComparison.OrdinalIgnoreCase)
+                ? await _repository.BuscarPersonasPorDniAsync(documento, ct)
+                : new List<PersonaOperador>();
             var deudas = await _repository
                 .BuscarDeudasAsync(documento, ct);
 
@@ -61,10 +65,22 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             respuesta.Sueldos = sueldos;
             respuesta.Moviles = moviles;
             respuesta.Fallecidos = fallecidos?.Fallecidos ?? new();
+            respuesta.Personas = personaOperador;
+            if (personaOperador.Count > 0)
+            {
+                var persona = personaOperador[0];
+                respuesta.NombreCompleto = string.Join(" ", new[]
+                {
+                    persona.ApePat,
+                    persona.ApeMat,
+                    persona.Prenombres
+                }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            }
             // "Figura en las fuentes consultadas" = aparece en al menos una tabla. Antes nunca se asignaba (siempre false)
             // y la web mostraba el aviso "El DNI no figura como válido" para todo el mundo, incluso con deudas y nombre.
             respuesta.EsDniValido = deudas.Count > 0 || lineasCredito.Count > 0 || calificaciones.Count > 0
-                || sueldos.Count > 0 || moviles.Count > 0 || respuesta.Fallecidos.Count > 0;
+                || sueldos.Count > 0 || moviles.Count > 0 || respuesta.Fallecidos.Count > 0
+                || personaOperador.Count > 0;
 
             return respuesta;
         }

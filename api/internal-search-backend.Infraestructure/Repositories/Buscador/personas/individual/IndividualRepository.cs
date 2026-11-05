@@ -142,6 +142,13 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
             return resultado;
         }
 
+        public Task<List<PersonaOperador>> BuscarPersonasPorDniAsync(string dni, CancellationToken ct) =>
+            _context.PersonasOperador
+                .AsNoTracking()
+                .Where(x => x.Dni == dni)
+                .OrderBy(x => x.Id)
+                .ToListAsync(ct);
+
         public async Task<List<Movil>> BuscarPorTelefonoAsync(
             string telefono,
             CancellationToken ct)
@@ -180,6 +187,23 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
             var periodosSueldos = await ObtenerUltimosPeriodosAsync(_context.Sueldos.Select(x => (string?)x.Periodo));
             var periodosMoviles = await ObtenerUltimosPeriodosAsync(_context.Movil.Select(x => x.Periodo));
 
+            var desdePersonas = await _context.PersonasOperador.AsNoTracking()
+                .Where(x => x.Dni != null
+                    && x.ApePat != null
+                    && EF.Functions.Like(x.ApePat, apePat.Trim() + "%")
+                    && x.ApeMat != null
+                    && EF.Functions.Like(x.ApeMat, (apeMat ?? string.Empty).Trim() + "%")
+                    && (string.IsNullOrWhiteSpace(nombres)
+                        || (x.Prenombres != null && EF.Functions.Like(x.Prenombres, nombres.Trim() + "%"))))
+                .Select(x => new BuscadorNombresResultado
+                {
+                    Documento = x.Dni!,
+                    NombreCompleto = ((x.ApePat ?? "") + " " + (x.ApeMat ?? "") + " " + (x.Prenombres ?? "")).Trim(),
+                })
+                .OrderBy(x => x.NombreCompleto)
+                .Take(100)
+                .ToListAsync(ct);
+
             var desdeCalificaciones = await _context.Calificaciones.AsNoTracking()
                 .Where(x => x.Documento != null && x.ApePat != null && x.Periodo != null && periodosCalificacion.Contains(x.Periodo)
                     && EF.Functions.Like(x.ApePat + " " + (x.ApeMat ?? "") + " " + (x.PriNombre ?? "") + " " + (x.SegNombre ?? ""), patron))
@@ -216,11 +240,12 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
                 .Take(100)
                 .ToListAsync(ct);
 
-            var resultado = desdeCalificaciones
+            var resultado = desdePersonas
+                .Concat(desdeCalificaciones)
                 .Concat(desdeMoviles)
                 .Concat(desdeSueldos)
                 .GroupBy(x => x.Documento)
-                .Select(g => g.OrderBy(x => x.NombreCompleto).First())
+                .Select(g => g.First())
                 .OrderBy(x => x.NombreCompleto)
                 .Take(100)
                 .ToList();
@@ -228,6 +253,10 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
             var documentos = resultado.Select(x => x.Documento).Distinct().ToList();
             if (documentos.Count > 0)
             {
+                var personas = await _context.PersonasOperador.AsNoTracking()
+                    .Where(x => x.Dni != null && documentos.Contains(x.Dni))
+                    .OrderBy(x => x.Id)
+                    .ToListAsync(ct);
                 var deudas = await _context.Deudas.AsNoTracking()
                     .Where(x => documentos.Contains(x.Documento!) && x.Periodo != null && periodosDeuda.Contains(x.Periodo))
                     .OrderByDescending(x => x.Periodo).ToListAsync(ct);
@@ -249,9 +278,15 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
                 var calificacionesPorDocumento = calificaciones.GroupBy(x => x.Documento).ToDictionary(g => g.Key!, g => g.ToList());
                 var sueldosPorDocumento = sueldos.GroupBy(x => x.Documento).ToDictionary(g => g.Key!, g => g.ToList());
                 var movilesPorDocumento = moviles.GroupBy(x => x.Documento).ToDictionary(g => g.Key!, g => g.ToList());
+                var personasPorDocumento = personas
+                    .Where(x => x.Dni != null)
+                    .GroupBy(x => x.Dni!)
+                    .ToDictionary(g => g.Key, g => g.ToList());
 
                 foreach (var persona in resultado)
                 {
+                    if (personasPorDocumento.TryGetValue(persona.Documento, out var personasCoincidentes))
+                        persona.Personas = personasCoincidentes;
                     if (deudasPorDocumento.TryGetValue(persona.Documento, out var deudasPersona)) persona.Deudas = deudasPersona;
                     if (lineasPorDocumento.TryGetValue(persona.Documento, out var lineasPersona)) persona.LineasCredito = lineasPersona;
                     if (calificacionesPorDocumento.TryGetValue(persona.Documento, out var calificacionesPersona)) persona.Calificaciones = calificacionesPersona;

@@ -3,7 +3,12 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { SECCIONES, type TipoLista } from './documentos';
 
-export type FaseCarga = { tipo: 'lista' } | { tipo: 'subiendo'; porcentaje: number } | { tipo: 'procesando' } | { tipo: 'listo'; nombre: string };
+export type FaseCarga =
+  | { tipo: 'lista' }
+  | { tipo: 'subiendo'; porcentaje: number; bloqueActual?: number; totalBloques?: number }
+  | { tipo: 'procesando'; porcentaje?: number; bloqueActual?: number; totalBloques?: number }
+  | { tipo: 'consolidando' }
+  | { tipo: 'listo'; nombre: string };
 export type EstadoCarga = {
   secciones: string[];
   fuente: 'pegar' | 'archivo';
@@ -12,6 +17,7 @@ export type EstadoCarga = {
   fase: FaseCarga;
   error: string;
 };
+
 type EstadosCarga = Record<TipoLista, EstadoCarga>;
 type ContextoEstadoCarga = {
   estados: EstadosCarga;

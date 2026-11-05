@@ -35,6 +35,7 @@ using Microsoft.AspNetCore.Builder;
 using internal_search.Domain.Interfaces.Reniec;
 using internal_search_backend.Business.Services.Reniec;
 using internal_search_backend.Infraestructure.Reniec;
+using internal_search_backend.Infraestructure.Repositories.Reniec;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -196,6 +197,7 @@ builder.Services.AddScoped<
 builder.Services.AddSingleton(
     builder.Configuration.GetSection("Reniec").Get<ReniecOptions>() ?? new ReniecOptions());
 builder.Services.AddHttpClient<IReniecClient, ReniecClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddScoped<IReniecRepository, ReniecRepository>();
 builder.Services.AddScoped<IReniecService, ReniecService>();
 
 builder.Services.AddScoped<IBuscadorMasivoRepository, BuscadorMasivoRepository>();

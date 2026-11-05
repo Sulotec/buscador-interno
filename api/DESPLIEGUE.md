@@ -210,7 +210,10 @@ La primera vez instala el SDK y compila (varios minutos) y hace la primera actua
 - **Todo lo que llegue a `main` se despliega solo, sin revisión.** Quien pueda escribir en `main` manda sobre el
   servidor: mantener los repositorios privados y con pocas personas con permiso de escritura.
 - **Los cambios de base de datos se ejecutan a mano, antes de subir el código que los usa**: la actualización no
-  corre scripts SQL.
+  corre scripts SQL. Para habilitar el guardado del último resultado RENIEC, ejecutar
+  `database/006_consultas_reniec.sql` en la base `Buscador` (puede volver a ejecutarse para agregar las columnas
+  de foto si la tabla ya existía). La foto se guarda en `RNC.Consultas.FOTO` hasta que se reemplace al consultar
+  el mismo DNI o se elimine manualmente; la API no la borra automáticamente. No se almacena la firma.
 - Si el repositorio pasa a ser privado, guardar un token de GitHub de solo lectura en
   `C:\Buscador\actualizador\github-token.txt`.
 - Hace falta cerca de 2 GB libres en `C:` (SDK, caché de paquetes y copia anterior).

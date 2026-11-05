@@ -1,13 +1,14 @@
 'use client';
 // Carga masiva (personas o empresas): 1) secciones, 2) documentos, 3) procesar y descargar el Excel.
 import clsx from 'clsx';
-import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileDown, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles } from 'lucide-react';
+import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Aviso, Boton, Chip, Pestanas, Tarjeta } from '@/components/ui';
-import { ErrorApi, guardarArchivo } from '@/lib/api';
+import { guardarArchivo, type Archivo } from '@/lib/api';
 import { fNumero } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { LIMITE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, plantilla, seccionesDe, type TipoLista } from './documentos';
+import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, seccionesDe, type TipoLista } from './documentos';
+import { combinarExcels } from './combinar-excels';
 import { HistorialDescargas } from './historial';
 import { servicioMasiva } from './servicio';
 import { useEstadoCarga } from './estado';
@@ -46,10 +47,11 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const setError = (valor: string) => actualizar({ error: valor });
   const [historial, setHistorial] = useState<HistorialDescarga[] | null>(null);
   const [cargandoHistorial, setCargandoHistorial] = useState(true);
+  const [progresoBloques, setProgresoBloques] = useState<{ clave: string; archivos: Archivo[] } | null>(null);
 
   const etiqueta = tipo === 'empresas' ? 'RUC' : 'documentos';
   const analisis = useMemo(() => analizar(texto, tipo), [texto, tipo]);
-  const ocupado = fase.tipo === 'subiendo' || fase.tipo === 'procesando';
+  const ocupado = fase.tipo === 'subiendo' || fase.tipo === 'procesando' || fase.tipo === 'consolidando';
   const pasoActual = !analisis.validos.length ? 1 : !secciones.length ? 2 : 3;
 
   const cargarHistorial = useCallback(() => {
@@ -73,22 +75,59 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
     : !analisis.validos.length ? `Agrega al menos un ${tipo === 'empresas' ? 'RUC' : 'documento'} válido.`
       : analisis.invalidos.length ? 'Corrige o elimina las entradas no válidas antes de procesar.'
         : analisis.validos.length > LIMITE_DOCUMENTOS ? `El máximo es ${fNumero(LIMITE_DOCUMENTOS)} por carga.` : null;
+  const claveSolicitud = JSON.stringify([tipo, secciones, analisis.validos]);
+  const progresoSolicitud = progresoBloques?.clave === claveSolicitud ? progresoBloques : null;
 
   async function procesar() {
     if (problema || !usuario) return;
     setError('');
     setFase({ tipo: 'subiendo', porcentaje: 0 });
-    const archivo = crearArchivo(analisis.validos, tipo === 'empresas' ? 'RUC' : 'Documentos');
     try {
-      const resultado = await servicioMasiva.procesar(tipo, archivo, secciones, (p) =>
-        setFase(p >= 100 ? { tipo: 'procesando' } : { tipo: 'subiendo', porcentaje: p }));
+      let resultado;
+      if (tipo === 'personas') {
+        const totalBloques = Math.ceil(analisis.validos.length / TAMANO_BLOQUE_DOCUMENTOS);
+        const archivos = progresoSolicitud ? [...progresoSolicitud.archivos] : [];
+
+        for (let indice = archivos.length; indice < totalBloques; indice++) {
+          const inicio = indice * TAMANO_BLOQUE_DOCUMENTOS;
+          const documentos = analisis.validos.slice(inicio, inicio + TAMANO_BLOQUE_DOCUMENTOS);
+          const archivo = crearArchivo(documentos, 'Documentos');
+          const porcentajeCompletado = Math.round((inicio / analisis.validos.length) * 100);
+          setFase({ tipo: 'procesando', bloqueActual: indice + 1, totalBloques, porcentaje: porcentajeCompletado });
+
+          const parcial = await servicioMasiva.procesar(tipo, archivo, secciones, (porcentaje) => {
+            if (porcentaje >= 100) {
+              setFase({ tipo: 'procesando', bloqueActual: indice + 1, totalBloques, porcentaje: porcentajeCompletado });
+              return;
+            }
+            const progresoLista = inicio + documentos.length * (porcentaje / 100);
+            setFase({
+              tipo: 'subiendo',
+              bloqueActual: indice + 1,
+              totalBloques,
+              porcentaje: Math.round((progresoLista / analisis.validos.length) * 100),
+            });
+          });
+          archivos.push(parcial);
+          setProgresoBloques({ clave: claveSolicitud, archivos: [...archivos] });
+        }
+
+        setFase({ tipo: 'consolidando' });
+        resultado = await combinarExcels(archivos);
+      } else {
+        const archivo = crearArchivo(analisis.validos, 'RUC');
+        resultado = await servicioMasiva.procesar(tipo, archivo, secciones, (porcentaje) =>
+          setFase(porcentaje >= 100 ? { tipo: 'procesando' } : { tipo: 'subiendo', porcentaje }));
+      }
+
       guardarArchivo(resultado);
       setFase({ tipo: 'listo', nombre: resultado.nombre });
+      setProgresoBloques(null);
       await servicioMasiva.guardarEnHistorial(resultado, secciones, analisis.validos.length).catch(() => null);
       setCargandoHistorial(true);
       cargarHistorial();
     } catch (e) {
-      setError(e instanceof ErrorApi ? e.message : 'No se pudo procesar la carga.');
+      setError(e instanceof Error ? e.message : 'No se pudo procesar la carga.');
       setFase({ tipo: 'lista' });
     } finally {
       actualizarSaldo();
@@ -235,14 +274,27 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
             <div className="relative mt-5 rounded-xl border border-azul-25/70 bg-white/80 p-3.5">
               <p className="mb-2 flex items-center gap-2 text-sm font-medium text-azul">
                 <Loader2 className="size-4 animate-spin" />
-                {fase.tipo === 'subiendo' ? `Enviando la lista… ${fase.porcentaje}%` : 'Consultando en el servidor. Puede tardar unos minutos.'}
+                {fase.tipo === 'subiendo'
+                  ? `Enviando bloque ${fase.bloqueActual ?? 1} de ${fase.totalBloques ?? 1}… ${fase.porcentaje}%`
+                  : fase.tipo === 'procesando'
+                    ? fase.bloqueActual
+                      ? `Procesando bloque ${fase.bloqueActual} de ${fase.totalBloques}…`
+                      : 'Consultando en el servidor. Puede tardar unos minutos.'
+                    : 'Consolidando todos los bloques en un solo Excel…'}
               </p>
               <div className="h-2 overflow-hidden rounded-full bg-azul-10">
                 {fase.tipo === 'subiendo'
                   ? <div className="h-full rounded-full bg-azul transition-[width]" style={{ width: `${fase.porcentaje}%` }} />
+                  : fase.tipo === 'procesando' && fase.porcentaje != null
+                    ? <div className="h-full rounded-full bg-azul transition-[width]" style={{ width: `${fase.porcentaje}%` }} />
                   : <div className="h-full w-1/3 rounded-full bg-azul [animation:barrido_1.2s_ease-in-out_infinite]" />}
               </div>
             </div>
+          )}
+          {progresoSolicitud && progresoSolicitud.archivos.length > 0 && !ocupado && (
+            <p className="mt-3 text-xs text-ambar">
+              Se conservaron {progresoSolicitud.archivos.length} bloques completados. Al continuar se procesarán los pendientes.
+            </p>
           )}
         </div>
       </Paso>

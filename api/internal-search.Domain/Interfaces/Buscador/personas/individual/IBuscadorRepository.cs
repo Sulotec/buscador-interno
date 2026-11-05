@@ -17,6 +17,7 @@ namespace internal_search.Domain.Interfaces.Buscador.personas.individual
         // Operador: filtran solo por documento (no manejan periodo)
         Task<List<Sueldo>> BuscarSueldosAsync(string documento, CancellationToken ct);
         Task<List<Movil>> BuscarMovilesAsync(string documento, CancellationToken ct);
+        Task<List<PersonaOperador>> BuscarPersonasPorDniAsync(string dni, CancellationToken ct);
 
         Task<List<Movil>> BuscarPorTelefonoAsync(string telefono, CancellationToken ct);
         Task<List<BuscadorNombresResultado>> BuscarPorNombresAsync(string apePat, string? apeMat, string? nombres, CancellationToken ct);

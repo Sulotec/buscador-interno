@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Banknote, Briefcase, Check, CreditCard, FileDown, Gauge, HeartCrack, IdCard, Phone, Search, UserRound, UserSearch, X } from 'lucide-react';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
 import { FichaReniec } from '@/modulos/personas/ficha-reniec';
-import { Operadora, Resumen, Seccion, SeccionesResultado, colMoviles, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
+import { Resumen, Seccion, SeccionPersonas, SeccionesResultado, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Vacio } from '@/components/ui';
 import { ErrorApi, guardarArchivo } from '@/lib/api';
@@ -11,7 +11,7 @@ import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
 import { BusquedaGlobalPersonas } from '@/modulos/personas/busqueda-global';
 import { BUSQUEDA_NOMBRES_DISPONIBLE, ConsultaIndividual } from '@/modulos/personas/consulta-individual';
-import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
+import { fFecha, fNumero, fTexto, nombreCompleto } from '@/lib/formato';
 import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre, ResultadoTelefono } from '@/modulos/personas/tipos';
 
 type CategoriaResultados = CategoriaSeccionResultado | 'fallecidos';
@@ -84,8 +84,6 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
   const setApeMatFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoMaternoFallecido: value }));
   const setPrenombresFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, prenombresFallecido: value }));
   const setResultadoFallecido = (value: ResultadoFallecidos | null) => setBusquedaPersona((state) => ({ ...state, resultadoFallecido: value }));
-  const [mostrarClientesTelefono, setMostrarClientesTelefono] = useState(false);
-  const [filtroClienteTelefono, setFiltroClienteTelefono] = useState('');
   const documentoTelefonoSeleccionado = esSegmento ? estadoSegmento.documentoTelefonoSeleccionado : busquedaPersona.documentoTelefonoSeleccionado;
   const setDocumentoTelefonoSeleccionado = (value: string | null) => esSegmento ? actualizarSegmento({ documentoTelefonoSeleccionado: value }) : setBusquedaPersona((state) => ({ ...state, documentoTelefonoSeleccionado: value }));
   const mostrarResultadosPorTab = esSegmento ? estadoSegmento.mostrarResultadosPorTab : busquedaPersona.mostrarResultadosPorTab;
@@ -117,7 +115,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     setResultadosNombres(null); setDocumentoNombreSeleccionado(''); setMostrarPersonasNombres(false); setFiltroPersonaNombres('');
     setDniFallecido(''); setApePatFallecido(''); setApeMatFallecido(''); setPrenombresFallecido('');
     setResultadoFallecido(null);
-    setMostrarClientesTelefono(false); setFiltroClienteTelefono(''); setDocumentoTelefonoSeleccionado(null);
+    setDocumentoTelefonoSeleccionado(null);
     setMostrarResultadosPorTab(false); setCategoriaResultados('telefonos');
     setError('');
   }
@@ -159,6 +157,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     setVistaBusqueda(tipoConsulta === 'global' ? 'global' : 'local');
     setModo('documento');
     setMostrarResultadosPorTab(tipoConsulta === 'global');
+    setCategoriaResultados('personas');
     setTipo(t);
     setError('');
     setPersona(null);
@@ -174,7 +173,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
       setCargando(false);
       actualizarSaldo();
     }
-  }, [actualizarSaldo, setModo, setTipo, setPersona, setReniec, setConsultado, setEntradaDocumento, setVistaBusqueda, setMostrarResultadosPorTab, tipoConsulta]);
+  }, [actualizarSaldo, setModo, setTipo, setPersona, setReniec, setConsultado, setEntradaDocumento, setVistaBusqueda, setMostrarResultadosPorTab, setCategoriaResultados, tipoConsulta]);
 
   const buscarTelefono = useCallback(async (numero: string) => {
     const num = numero.replace(/\D/g, '').slice(0, 9);
@@ -197,8 +196,6 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
         return [clave, { clave, documento: registro.documento }] as const;
       })).values()];
       setDocumentoTelefonoSeleccionado(clientesUnicos.length === 1 ? clientesUnicos[0].documento?.trim() || clientesUnicos[0].clave : null);
-      setFiltroClienteTelefono('');
-      setMostrarClientesTelefono(false);
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo realizar la consulta.');
     } finally {
@@ -318,7 +315,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     if (!persona) return;
     setCargandoReniec(true);
     try {
-      setReniec(await servicioPersonas.reniec(persona.documento));
+      const respuesta = await servicioPersonas.reniec(persona.documento);
+      setReniec(respuesta);
+
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo consultar RENIEC.');
     } finally {
@@ -364,12 +363,14 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
   const nombreDesdeMovil = persona?.moviles
     .map((m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat))
     .find((nombre) => nombre !== '—');
-  const nombrePersona = nombreDesdeCalificacion && nombreDesdeCalificacion !== '—'
-    ? nombreDesdeCalificacion
-    : persona?.deudas.find((d) => d.razonSocial?.trim())?.razonSocial?.trim()
-      || nombreDesdeMovil
-      || persona?.sueldos.find((s) => s.apeNom?.trim())?.apeNom?.trim()
-      || '';
+  const nombrePersona = persona?.nombreCompleto
+    || (nombreDesdeCalificacion && nombreDesdeCalificacion !== '—'
+      ? nombreDesdeCalificacion
+      : '')
+    || persona?.deudas.find((d) => d.razonSocial?.trim())?.razonSocial?.trim()
+    || nombreDesdeMovil
+    || persona?.sueldos.find((s) => s.apeNom?.trim())?.apeNom?.trim()
+    || '';
   const titularesTelefono = [...new Set(telefono?.registros
     .map((m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat))
     .filter((nombre) => nombre !== '—') ?? [])];
@@ -379,16 +380,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     const clave = registro.documento?.trim() || nombre;
     return [clave, { clave, documento: registro.documento, nombre, periodo: registro.periodo }] as const;
   }) ?? []).values()];
-  const clientesTelefonoFiltrados = clientesTelefono.filter((cliente) =>
-    `${cliente.nombre} ${cliente.documento ?? ''}`.toLocaleLowerCase().includes(filtroClienteTelefono.trim().toLocaleLowerCase()),
-  );
   const resultadosNombresFiltrados = resultadosNombres?.filter((resultado) =>
     `${resultado.nombreCompleto} ${resultado.documento}`.toLocaleLowerCase().includes(filtroPersonaNombres.trim().toLocaleLowerCase()),
   ) ?? [];
-  const registrosTelefonoVisibles = telefono?.registros.filter((registro) =>
-    !documentoTelefonoSeleccionado || (registro.documento?.trim() || nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)) === documentoTelefonoSeleccionado,
-  ) ?? [];
-
   return (
     <div className="relative space-y-6" aria-busy={busquedaGlobalCargando || cargando}>
       <Encabezado titulo={tipoConsulta === 'global' ? 'Búsqueda global' : 'Búsqueda por segmento'} bajada="Cada consulta descuenta tokens y queda registrada en la auditoría."
@@ -403,9 +397,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             else { limpiarBusquedaLocal(); setVistaBusqueda(null); }
           }}>Limpiar</Boton>
         </div>} />
-        <Modal abierto={mostrarGuia} titulo="Guía rápida de consulta" alCerrar={() => setMostrarGuia(false)} ancho="max-w-3xl">
-          <p className="mb-5 text-sm text-gris">Cómo buscar, elegir una persona y revisar sus datos.</p>
-          <ol className="grid gap-5 sm:grid-cols-2">
+      <Modal abierto={mostrarGuia} titulo="Guía rápida de consulta" alCerrar={() => setMostrarGuia(false)} ancho="max-w-3xl">
+        <p className="mb-5 text-sm text-gris">Cómo buscar, elegir una persona y revisar sus datos.</p>
+        <ol className="grid gap-5 sm:grid-cols-2">
           <li className="flex items-start gap-3">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">1</span>
             <p className="text-sm leading-5 text-gris"><strong className="text-texto">Elige dónde buscar.</strong> Usa Búsqueda global para un criterio independiente o selecciona un tipo en «¿Qué dato deseas consultar?».</p>
@@ -422,8 +416,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-azul-10 text-xs font-bold text-azul">4</span>
             <p className="text-sm leading-5 text-gris"><strong className="text-texto">Revisa los resultados.</strong> Cambia entre las pestañas de datos. En teléfono o nombres, abre el filtro para encontrar y seleccionar a la persona.</p>
           </li>
-          </ol>
-        </Modal>
+        </ol>
+      </Modal>
       {tipoConsulta === 'global' && <BusquedaGlobalPersonas
         activa
         documentoTelefonoSeleccionado={documentoTelefonoSeleccionado}
@@ -435,7 +429,6 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
           setConsultado(null);
           setReniec(null);
           setDocumentoTelefonoSeleccionado(null);
-          setMostrarClientesTelefono(false);
           setMostrarResultadosPorTab(false);
         }}
         alEncontrarTelefono={(resultado: ResultadoTelefono) => {
@@ -449,17 +442,17 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
           setError('');
         }}
         alEncontrarDocumento={(tipo, resultado, mantenerTelefono = false) => {
-        if (!mantenerTelefono) setModo('documento');
-        setMostrarResultadosPorTab(true);
-        setCategoriaResultados('telefonos');
-        setTipo(tipo);
-        setPersona(resultado);
-        setConsultado({ tipo, numero: resultado.documento });
-        setEntradaDocumento(resultado.documento);
-        setReniec(null);
-        setError('');
-        setVistaBusqueda('global');
-      }} />}
+          if (!mantenerTelefono) setModo('documento');
+          setMostrarResultadosPorTab(true);
+          setCategoriaResultados('personas');
+          setTipo(tipo);
+          setPersona(resultado);
+          setConsultado({ tipo, numero: resultado.documento });
+          setEntradaDocumento(resultado.documento);
+          setReniec(null);
+          setError('');
+          setVistaBusqueda('global');
+        }} />}
       {tipoConsulta === 'global' && busquedaPersona.global.cargandoFicha && !persona && (
         <div className="rounded-xl border border-borde bg-white"><Cargando texto="Cargando tablas de la persona seleccionada..." /></div>
       )}
@@ -506,7 +499,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
               alCambiar={setCategoriaResultados}
               deshabilitadas={consultaEnCurso}
               opciones={[
-                { id: 'telefonos', texto: 'Móviles', icono: <Phone className="size-4" /> },
+                // { id: 'telefonos', texto: 'Móviles', icono: <Phone className="size-4" /> },
+                { id: 'personas', texto: 'Personas', icono: <UserRound className="size-4" /> },
                 { id: 'laboral', texto: 'Sueldos', icono: <Briefcase className="size-4" /> },
                 { id: 'deudas', texto: 'Deudas', icono: <Banknote className="size-4" /> },
                 { id: 'calificaciones', texto: 'Calificación', icono: <Gauge className="size-4" /> },
@@ -517,17 +511,20 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             {tipoConsulta === 'global' && busquedaGlobalCargando
               ? <div className="rounded-xl border border-borde bg-white"><Cargando texto="Cargando datos de la persona seleccionada..." /></div>
               : categoriaResultados === 'fallecidos'
-              ? consultado?.tipo === 'DNI'
-                ? <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
+                ? consultado?.tipo === 'DNI'
+                  ? <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
                     <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
                   </Seccion>
-                : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
-              : <SeccionesResultado s={persona} categoria={categoriaResultados} />}
+                  : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
+                : categoriaResultados === 'personas'
+                  ? <SeccionPersonas filas={persona.personas} />
+                : <SeccionesResultado s={persona} categoria={categoriaResultados} ocultarTelefonos />}
           </> : <>
-            <SeccionesResultado s={persona} />
+            <SeccionesResultado s={persona} ocultarTelefonos />
             {consultado?.tipo === 'DNI' && <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
               <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
             </Seccion>}
+            {tipoConsulta === 'segmento' && <SeccionPersonas filas={persona.personas} />}
           </>}
         </div>
       )}
@@ -571,7 +568,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                   <p className="numeros mt-0.5 text-sm text-gris">Documento {seleccionado.documento}</p>
                 </div>
                 <Resumen s={seleccionado} />
-                <SeccionesResultado s={seleccionado} />
+                <SeccionesResultado s={seleccionado} ocultarTelefonos />
+                <SeccionPersonas filas={seleccionado.personas} />
               </div>
             ) : <Vacio icono={<UserRound className="size-5" />} titulo="Selecciona una persona">Elige una coincidencia para ver su información completa. Los datos se filtrarán por su documento.</Vacio>;
           })()}
@@ -609,6 +607,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
               { id: 'calificaciones', texto: 'Calificación', icono: <Gauge className="size-4" /> },
               { id: 'lineas', texto: 'Líneas de crédito', icono: <CreditCard className="size-4" /> },
               { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
+              { id: 'personas', texto: 'Personas', icono: <UserRound className="size-4" /> },
             ]}
           />}
           {tipoConsulta === 'global' && categoriaResultados !== 'telefonos' ? busquedaGlobalCargando ? (
@@ -617,75 +616,55 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             categoriaResultados === 'fallecidos'
               ? consultado?.tipo === 'DNI'
                 ? <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
-                    <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
-                  </Seccion>
+                  <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
+                </Seccion>
                 : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
-              : <SeccionesResultado s={persona} categoria={categoriaResultados} />
+              : categoriaResultados === 'personas'
+                ? <SeccionPersonas filas={persona.personas} />
+              : <SeccionesResultado s={persona} categoria={categoriaResultados} ocultarTelefonos />
           ) : <Vacio icono={<UserRound className="size-5" />} titulo="Elige un cliente del teléfono">
             Selecciona un cliente en «Filtrar y elegir cliente» para consultar sus datos en esta pestaña.
           </Vacio> : <>
-          <div className="flex flex-wrap items-center gap-2">
-            {tipoConsulta === 'segmento' && clientesTelefono.length > 1 && <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setMostrarClientesTelefono(true)}><UserRound className="size-4" />Filtrar clientes</Boton>}
-            {clientesTelefono.length > 1 && documentoTelefonoSeleccionado && <Boton type="button" variante="fantasma" disabled={consultaEnCurso} onClick={() => {
-              setDocumentoTelefonoSeleccionado(null);
-              if (tipoConsulta === 'global') {
+            {tipoConsulta === 'global' && <>
+              <div className="flex flex-wrap items-center gap-2">
+                {clientesTelefono.length > 1 && documentoTelefonoSeleccionado && <Boton type="button" variante="fantasma" disabled={consultaEnCurso} onClick={() => {
+                setDocumentoTelefonoSeleccionado(null);
                 setPersona(null);
                 setConsultado(null);
                 setReniec(null);
                 setMostrarResultadosPorTab(false);
                 setCategoriaResultados('telefonos');
-              }
-            }}>Limpiar filtro</Boton>}
-          </div>
-          <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
-            {tipoConsulta === 'global' && busquedaGlobalCargando ? <Cargando texto="Cargando datos del cliente..." /> : <>
-            <div className="divide-y divide-borde sm:hidden">
-              {registrosTelefonoVisibles.map((registro, indice) => (
-                <article key={`${registro.documento}-${indice}`} className="space-y-3 px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="break-words text-sm font-semibold text-texto">{nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)}</h3>
-                      <p className="numeros mt-1 text-xs text-gris">Documento {fTexto(registro.documento)}</p>
-                    </div>
-                    <span className="shrink-0 rounded-md bg-azul-10 px-2 py-1 text-xs font-semibold text-azul">{fPeriodo(registro.periodo)}</span>
-                  </div>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                    <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Operadora</dt><dd className="mt-1"><Operadora nombre={registro.empresaOperadora} /></dd></div>
-                    <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Fecha de alta</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fFecha(registro.fechaAlta)}</dd></div>
-                    <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Plan</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fTexto(registro.planMovil)}</dd></div>
-                    <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Modalidad</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fTexto(registro.modalidad)}</dd></div>
-                  </dl>
-                </article>
-              ))}
-              {!registrosTelefonoVisibles.length && <p className="px-5 py-8 text-center text-sm text-gris">No se encontraron registros para este número.</p>}
-            </div>
-            <div className="hidden sm:block">
-              <Tabla columnas={colMoviles} filas={registrosTelefonoVisibles} clave={(m, i) => `${m.documento}-${i}`} vacio="No se encontraron registros para este número." />
-            </div>
-            </>}
-          </Seccion>
-          {tipoConsulta === 'segmento' && mostrarClientesTelefono && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!consultaEnCurso && e.target === e.currentTarget) setMostrarClientesTelefono(false); }}>
-            <section role="dialog" aria-modal="true" aria-labelledby="clientes-telefono-tab-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
-              <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
-                <div><h3 id="clientes-telefono-tab-titulo" className="font-semibold text-texto">Elige el cliente del teléfono</h3><p className="mt-1 text-xs text-gris">Filtra por nombre o documento. Al elegir un cliente, se cerrará esta ventana y verás sus líneas filtradas por documento. Se encontraron {clientesTelefono.length} clientes/documentos asociados.</p></div>
-                <button type="button" aria-label="Cerrar" disabled={consultaEnCurso} onClick={() => setMostrarClientesTelefono(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:opacity-50"><X className="size-4" /></button>
-              </header>
-              <div className="border-b border-borde p-4">
-                <div className="flex gap-2">
-                  <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar clientes</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={consultaEnCurso} value={filtroClienteTelefono} onChange={(e) => setFiltroClienteTelefono(e.target.value)} className="input input--icono" placeholder="Buscar por nombre o documento" /></label>
-                  <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setFiltroClienteTelefono('')}>Limpiar</Boton>
-                </div>
+              }}>Limpiar filtro</Boton>}
               </div>
-              <ul className="min-h-0 divide-y divide-borde overflow-y-auto">
-                {clientesTelefonoFiltrados.map((cliente) => <li key={cliente.clave}>
-                  <button type="button" disabled={consultaEnCurso} aria-pressed={cliente.clave === documentoTelefonoSeleccionado} onClick={() => { setDocumentoTelefonoSeleccionado(cliente.documento?.trim() || cliente.clave); setMostrarClientesTelefono(false); }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-60 ${cliente.clave === documentoTelefonoSeleccionado ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
-                    <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{cliente.nombre}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(cliente.documento)} · {fPeriodo(cliente.periodo)}</span></span>{cliente.clave === documentoTelefonoSeleccionado && <Check aria-label="Cliente seleccionado" className="size-4 shrink-0 text-azul" />}</span>
-                  </button>
-                </li>)}
-                {!clientesTelefonoFiltrados.length && <li className="px-5 py-8 text-center text-sm text-gris">No hay clientes que coincidan con el filtro.</li>}
-              </ul>
-            </section>
-          </div>}
+              {/* Tabla telefónica temporalmente oculta; se conserva el resumen del teléfono. */}
+              {/* <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
+                {busquedaGlobalCargando ? <Cargando texto="Cargando datos del cliente..." /> : <>
+                <div className="divide-y divide-borde sm:hidden">
+                  {registrosTelefonoVisibles.map((registro, indice) => (
+                    <article key={`${registro.documento}-${indice}`} className="space-y-3 px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="break-words text-sm font-semibold text-texto">{nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)}</h3>
+                          <p className="numeros mt-1 text-xs text-gris">Documento {fTexto(registro.documento)}</p>
+                        </div>
+                        <span className="shrink-0 rounded-md bg-azul-10 px-2 py-1 text-xs font-semibold text-azul">{fPeriodo(registro.periodo)}</span>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                        <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Operadora</dt><dd className="mt-1"><Operadora nombre={registro.empresaOperadora} /></dd></div>
+                        <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Fecha de alta</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fFecha(registro.fechaAlta)}</dd></div>
+                        <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Plan</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fTexto(registro.planMovil)}</dd></div>
+                        <div><dt className="text-[10px] font-bold uppercase tracking-wider text-gris">Modalidad</dt><dd className="mt-0.5 text-xs font-medium text-texto">{fTexto(registro.modalidad)}</dd></div>
+                      </dl>
+                    </article>
+                  ))}
+                  {!registrosTelefonoVisibles.length && <p className="px-5 py-8 text-center text-sm text-gris">No se encontraron registros para este número.</p>}
+                </div>
+                <div className="hidden sm:block">
+                  <Tabla columnas={colMoviles} filas={registrosTelefonoVisibles} clave={(m, i) => `${m.documento}-${i}`} vacio="No se encontraron registros para este número." />
+                </div>
+              </>}
+              </Seccion> */}
+            </>}
           </>}
         </div>
       )}
