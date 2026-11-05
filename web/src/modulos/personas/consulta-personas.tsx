@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Banknote, Briefcase, Check, CreditCard, FileDown, Gauge, HeartCrack, IdCard, Phone, Search, UserRound, UserSearch, X } from 'lucide-react';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
 import { FichaReniec } from '@/modulos/personas/ficha-reniec';
-import { Resumen, Seccion, SeccionPersonas, SeccionesResultado, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
+import { colMoviles, Operadora, Resumen, Seccion, SeccionPersonas, SeccionesResultado, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Vacio } from '@/components/ui';
 import { ErrorApi, guardarArchivo } from '@/lib/api';
@@ -11,7 +11,7 @@ import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
 import { BusquedaGlobalPersonas } from '@/modulos/personas/busqueda-global';
 import { BUSQUEDA_NOMBRES_DISPONIBLE, ConsultaIndividual } from '@/modulos/personas/consulta-individual';
-import { fFecha, fNumero, fTexto, nombreCompleto } from '@/lib/formato';
+import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre, ResultadoTelefono } from '@/modulos/personas/tipos';
 
 type CategoriaResultados = CategoriaSeccionResultado | 'fallecidos';
@@ -380,6 +380,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     const clave = registro.documento?.trim() || nombre;
     return [clave, { clave, documento: registro.documento, nombre, periodo: registro.periodo }] as const;
   }) ?? []).values()];
+  const registrosTelefonoVisibles = telefono?.registros.filter((registro) =>
+    !documentoTelefonoSeleccionado || (registro.documento?.trim() || nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)) === documentoTelefonoSeleccionado,
+  ) ?? [];
   const resultadosNombresFiltrados = resultadosNombres?.filter((resultado) =>
     `${resultado.nombreCompleto} ${resultado.documento}`.toLocaleLowerCase().includes(filtroPersonaNombres.trim().toLocaleLowerCase()),
   ) ?? [];
@@ -499,8 +502,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
               alCambiar={setCategoriaResultados}
               deshabilitadas={consultaEnCurso}
               opciones={[
-                // { id: 'telefonos', texto: 'Móviles', icono: <Phone className="size-4" /> },
                 { id: 'personas', texto: 'Personas', icono: <UserRound className="size-4" /> },
+                { id: 'telefonos', texto: 'Teléfonos', icono: <Phone className="size-4" /> },
                 { id: 'laboral', texto: 'Sueldos', icono: <Briefcase className="size-4" /> },
                 { id: 'deudas', texto: 'Deudas', icono: <Banknote className="size-4" /> },
                 { id: 'calificaciones', texto: 'Calificación', icono: <Gauge className="size-4" /> },
@@ -518,13 +521,18 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                   : <p className="text-sm text-gris">La consulta de fallecidos está disponible para DNI.</p>
                 : categoriaResultados === 'personas'
                   ? <SeccionPersonas filas={persona.personas} />
+                : categoriaResultados === 'telefonos'
+                  ? <SeccionesResultado s={persona} categoria="telefonos" />
                 : <SeccionesResultado s={persona} categoria={categoriaResultados} ocultarTelefonos />}
           </> : <>
             <SeccionesResultado s={persona} ocultarTelefonos />
             {consultado?.tipo === 'DNI' && <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
               <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
             </Seccion>}
-            {tipoConsulta === 'segmento' && <SeccionPersonas filas={persona.personas} />}
+            {tipoConsulta === 'segmento' && <>
+              <SeccionPersonas filas={persona.personas} />
+              <SeccionesResultado s={persona} categoria="telefonos" />
+            </>}
           </>}
         </div>
       )}
@@ -570,6 +578,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                 <Resumen s={seleccionado} />
                 <SeccionesResultado s={seleccionado} ocultarTelefonos />
                 <SeccionPersonas filas={seleccionado.personas} />
+                <SeccionesResultado s={seleccionado} categoria="telefonos" />
               </div>
             ) : <Vacio icono={<UserRound className="size-5" />} titulo="Selecciona una persona">Elige una coincidencia para ver su información completa. Los datos se filtrarán por su documento.</Vacio>;
           })()}
@@ -636,8 +645,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                 setCategoriaResultados('telefonos');
               }}>Limpiar filtro</Boton>}
               </div>
-              {/* Tabla telefónica temporalmente oculta; se conserva el resumen del teléfono. */}
-              {/* <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
+            </>}
+              <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
                 {busquedaGlobalCargando ? <Cargando texto="Cargando datos del cliente..." /> : <>
                 <div className="divide-y divide-borde sm:hidden">
                   {registrosTelefonoVisibles.map((registro, indice) => (
@@ -663,8 +672,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                   <Tabla columnas={colMoviles} filas={registrosTelefonoVisibles} clave={(m, i) => `${m.documento}-${i}`} vacio="No se encontraron registros para este número." />
                 </div>
               </>}
-              </Seccion> */}
-            </>}
+              </Seccion>
           </>}
         </div>
       )}
