@@ -12,6 +12,7 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
         public List<string> DocumentosSinResultados { get; set; } = new();
 
         // Una lista por pestaña
+        public List<PersonaOperador> Personas { get; set; } = new();
         public List<Movil> Moviles { get; set; } = new();
         public List<Sueldo> Sueldos { get; set; } = new();
         public List<Calificacion> Calificaciones { get; set; } = new();

@@ -1,7 +1,7 @@
 'use client';
 // Presentacion de resultados: resumen + una tarjeta por seccion (deudas, lineas, calificaciones, laboral, telefonos).
 import { useEffect, useState, type ReactNode } from 'react';
-import { Banknote, Briefcase, Building2, CalendarDays, ContactRound, CreditCard, Fingerprint, Gauge, Hash, IdCard, LucideIcon, MapPin, Phone, PhoneCall, Smartphone, UserRound, UsersRound } from 'lucide-react';
+import { Banknote, Briefcase, Building2, CalendarDays, ContactRound, CreditCard, Fingerprint, Gauge, IdCard, LucideIcon, MapPin, Phone, PhoneCall, Smartphone, UserRound, UsersRound } from 'lucide-react';
 import { Chip, Tabla, Tarjeta, type Columna } from '@/components/ui';
 import { fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import type { PersonaOperador } from '@/modulos/personas/tipos';
@@ -97,14 +97,14 @@ const colSueldos: Columna<Sueldo>[] = [
   { titulo: 'Nivel', celda: (s) => fTexto(s.nivelIngreso) },
 ];
 const colPersonas: Columna<PersonaOperador>[] = [
-  { titulo: 'ID', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris"><Hash aria-hidden className="size-3.5 shrink-0" /><span className="numeros">{fNumero(p.id)}</span></span> },
   { titulo: 'Tipo doc.', celda: (p) => <span className="inline-flex items-center gap-1.5"><IdCard aria-hidden className="size-3.5 shrink-0 text-gris" /><span className="rounded bg-[#f1f3f6] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-gris">{fTexto(p.tipoDoc)}</span></span> },
   { titulo: 'DNI', celda: (p) => <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide"><Fingerprint aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.dni)}</span> },
   { titulo: 'Fecha nacimiento', celda: (p) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-gris"><CalendarDays aria-hidden className="size-3.5 shrink-0" />{fFecha(p.fechaNacimiento)}</span> },
   { titulo: 'Apellido paterno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UserRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apePat)}</span> },
   { titulo: 'Apellido materno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UsersRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apeMat)}</span> },
   { titulo: 'Prenombres', celda: (p) => <span className="inline-flex items-center gap-1.5 font-semibold text-texto"><ContactRound aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.prenombres)}</span> },
-  { titulo: 'UBIGEO RENIEC', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris"><MapPin aria-hidden className="size-3.5 shrink-0" /><span className="numeros">{fTexto(p.ubigeoReniec)}</span></span> },
+  // Descripción del ubigeo (RNC.Ubigeos); si el código no está en el catálogo se muestra el código
+  { titulo: 'UBIGEO RENIEC', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris" title={p.ubigeoReniec ? `Código ${p.ubigeoReniec}` : undefined}><MapPin aria-hidden className="size-3.5 shrink-0" /><span className={p.ubigeoDescripcion ? undefined : 'numeros'}>{fTexto(p.ubigeoDescripcion || p.ubigeoReniec)}</span></span> },
 ];
 
 export function SeccionPersonas({ filas }: { filas?: PersonaOperador[] | null }) {

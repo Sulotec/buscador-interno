@@ -2,6 +2,8 @@
 
 public static class SeccionesMasivo
 {
+    // Solo personas (DNI): datos de identificación de Operador.Personas
+    public const string Personas = "personas";
     public const string Moviles = "moviles";
     public const string Sueldos = "sueldos";
     public const string Calificacion = "calificacion";
@@ -11,6 +13,6 @@ public static class SeccionesMasivo
 
     public static readonly HashSet<string> Todas = new()
     {
-        Moviles, Sueldos, Calificacion, Deuda, LineasCredito, Fallecidos
+        Personas, Moviles, Sueldos, Calificacion, Deuda, LineasCredito, Fallecidos
     };
 }

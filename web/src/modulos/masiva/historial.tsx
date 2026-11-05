@@ -11,6 +11,7 @@ import type { HistorialDescarga } from './tipos';
 
 const nombreSeccion = (id: string) => SECCIONES.find((s) => s.id === id)?.nombre ?? id;
 const colorSeccion: Record<string, string> = {
+  personas: 'bg-[#eaf0fb] text-[#2f5a9e]',
   moviles: 'bg-[#e8f5fb] text-[#26718e]',
   sueldos: 'bg-[#edf5e4] text-[#587b2c]',
   deuda: 'bg-[#f9eaf0] text-[#9b4c68]',

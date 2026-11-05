@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<Sueldo> Sueldos { get; set; }
     public DbSet<Fallecidos> Fallecidos { get; set; }
     public DbSet<PersonaOperador> PersonasOperador { get; set; }
+    public DbSet<Ubigeo> Ubigeos { get; set; }
 
     // NUEVO
     public DbSet<HistorialDescarga> HistorialDescargas { get; set; }
@@ -63,6 +64,18 @@ public class AppDbContext : DbContext
             e.Property(x => x.ApeMat).HasColumnName("APE_MAT").HasMaxLength(100).IsUnicode(false);
             e.Property(x => x.Prenombres).HasColumnName("PRENOMBRES").HasMaxLength(150).IsUnicode(false);
             e.Property(x => x.UbigeoReniec).HasColumnName("UBIGEO_RENIEC").HasMaxLength(6).IsUnicode(false);
+            e.Ignore(x => x.UbigeoDescripcion);
+        });
+
+        // Catálogo de ubigeos (solo lectura); solo se mapean las columnas que usa la aplicación
+        modelBuilder.Entity<Ubigeo>(e =>
+        {
+            e.ToTable("Ubigeos", "RNC");
+            e.HasKey(x => x.Id);
+
+            e.Property(x => x.Id).HasColumnName("ID").ValueGeneratedNever();
+            e.Property(x => x.Codigo).HasColumnName("UBIGEO").HasMaxLength(6).IsUnicode(false);
+            e.Property(x => x.Descripcion).HasColumnName("UBIGEO_DESCRIPCION").HasMaxLength(100).IsUnicode(false);
         });
 
         // NUEVO: historial de descargas (tabla ya creada en BD)

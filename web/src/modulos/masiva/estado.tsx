@@ -44,6 +44,16 @@ export function ProveedorEstadoCarga({ children }: { children: ReactNode }) {
   return <ContextoCarga.Provider value={{ estados, actualizar }}>{children}</ContextoCarga.Provider>;
 }
 
+// La carga está trabajando (subiendo, procesando o consolidando bloques).
+export const cargaOcupada = (fase: FaseCarga) =>
+  fase.tipo === 'subiendo' || fase.tipo === 'procesando' || fase.tipo === 'consolidando';
+
+// Hay una carga masiva en curso (personas o empresas): el resto de la aplicación debe bloquearse.
+export function useCargaMasivaEnCurso() {
+  const contexto = useContext(ContextoCarga);
+  return contexto ? Object.values(contexto.estados).some((e) => cargaOcupada(e.fase)) : false;
+}
+
 export function useEstadoCarga(tipo: TipoLista) {
   const contexto = useContext(ContextoCarga);
   if (!contexto) throw new Error('useEstadoCarga debe usarse dentro de ProveedorEstadoCarga.');

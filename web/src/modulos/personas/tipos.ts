@@ -19,6 +19,8 @@ export interface ResultadoNombre {
 export interface PersonaOperador {
   id: number; tipoDoc: string | null; dni: string | null; fechaNacimiento: string | null;
   apePat: string | null; apeMat: string | null; prenombres: string | null; ubigeoReniec: string | null;
+  // Descripción del ubigeo según RNC.Ubigeos (null si el código no está en el catálogo)
+  ubigeoDescripcion?: string | null;
 }
 
 export interface ReniecPersona {

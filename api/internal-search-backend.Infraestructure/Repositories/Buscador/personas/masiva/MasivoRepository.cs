@@ -1,6 +1,7 @@
 ﻿using internal_search.Domain.DTOs.buscador.persona.masivos;
 using internal_search.Domain.Interfaces.Buscador.personas.masivo;
 using Microsoft.EntityFrameworkCore;
+using internal_search_backend.Infraestructure.Repositories.Buscador.personas;
 
 namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas.masiva
 {
@@ -19,6 +20,7 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
         {
             var result = new BuscadorMasivoResponse();
 
+            var pidePersonas = secciones.Contains(SeccionesMasivo.Personas);
             var pideMoviles = secciones.Contains(SeccionesMasivo.Moviles);
             var pideSueldos = secciones.Contains(SeccionesMasivo.Sueldos);
             var pideCalificacion = secciones.Contains(SeccionesMasivo.Calificacion);
@@ -29,6 +31,13 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
             foreach (var lote in validos.Chunk(1000))
             {
                 var batch = lote.ToList();
+
+                // Igual que la consulta individual: se busca por DNI en Operador.Personas
+                if (pidePersonas)
+                    result.Personas.AddRange(await _db.PersonasOperador.AsNoTracking()
+                        .Where(x => batch.Contains(x.Dni!))
+                        .OrderBy(x => x.Dni).ThenBy(x => x.Id)
+                        .ToListAsync(ct));
 
                 if (pideMoviles)
                     result.Moviles.AddRange(await _db.Movil.AsNoTracking()
@@ -67,6 +76,10 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
                         .ToListAsync(ct));
 
             }
+
+            // Descripción del ubigeo de cada persona (una consulta por cada 1000 códigos distintos)
+            if (pidePersonas)
+                await _db.CompletarUbigeosAsync(result.Personas, ct);
 
             return result;
         }

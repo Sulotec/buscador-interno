@@ -10,6 +10,7 @@ import {
 import { Marca } from './marca';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
+import { useCargaMasivaEnCurso } from '@/modulos/masiva/estado';
 import { Aviso, Cargando } from '@/components/ui';
 
 interface Enlace { href: string; texto: string; icono: ReactNode; clave?: string }
@@ -64,6 +65,7 @@ function Navegacion({ alNavegar, compacta = false, deshabilitada = false }: { al
                       'flex items-center transition-all duration-300',
                       compacta ? 'size-12 justify-center rounded-xl' : 'gap-3 rounded-lg px-3 py-2 text-sm',
                       activo ? 'bg-white font-semibold text-azul shadow-[inset_3px_0_0_var(--color-rojo)]' : 'text-white/80 hover:bg-white/12 hover:text-white',
+                      deshabilitada && !activo && 'pointer-events-none cursor-not-allowed opacity-40',
                     )}
                   >
                     {e.icono}<span className={clsx('overflow-hidden whitespace-nowrap transition-all duration-300', compacta ? 'max-w-0 opacity-0' : 'max-w-48 opacity-100')}>{e.texto}</span>
@@ -94,10 +96,14 @@ function Saldo() {
 export function Shell({ children }: { children: ReactNode }) {
   const { usuario, esAdmin, error, salir } = useSesion();
   const { busquedaPersona } = useEstadoConsultas();
+  const cargaMasivaEnCurso = useCargaMasivaEnCurso();
+  // Bloquea la navegación mientras hay una consulta o una carga masiva en curso
   const consultaEnCurso = busquedaPersona.cargandoLocal
     || busquedaPersona.segmento.cargando
     || busquedaPersona.global.cargando
-    || busquedaPersona.global.cargandoFicha;
+    || busquedaPersona.global.cargandoFicha
+    || busquedaPersona.accionEnCurso
+    || cargaMasivaEnCurso;
   const [rutaAbierta, setRutaAbierta] = useState<string | null>(null);
   const [menuCompacto, setMenuCompacto] = useState(false);
   const ruta = usePathname();
@@ -109,6 +115,11 @@ export function Shell({ children }: { children: ReactNode }) {
         <Link href="/inicio" aria-label="Buscador Interno, inicio" aria-disabled={consultaEnCurso || undefined} tabIndex={consultaEnCurso ? -1 : undefined} onClick={(event) => { if (consultaEnCurso) event.preventDefault(); }} className="flex min-w-0 items-center transition-colors"><Marca compacto={compacto} /></Link>
       </div>
       <Navegacion alNavegar={() => setRutaAbierta(null)} compacta={compacto} deshabilitada={consultaEnCurso} />
+      {consultaEnCurso && !compacto && (
+        <p role="status" className="mx-1 rounded-lg bg-white/10 px-3 py-2 text-[11px] leading-relaxed text-white/85">
+          {cargaMasivaEnCurso ? 'Carga masiva en curso.' : 'Consulta en curso.'} El menú se habilitará cuando termine.
+        </p>
+      )}
       <p className={clsx('mt-auto px-3 text-[11px] leading-relaxed text-white/55', compacto && 'hidden')}>
         Uso interno. Cada consulta queda registrada en la auditoría.
       </p>
@@ -146,7 +157,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <p className="text-xs text-gris">{esAdmin ? 'Administrador General' : usuario.roles.map((r) => r.rol).join(', ') || usuario.usuario}</p>
               </div>
             )}
-            <button onClick={salir} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-gris hover:bg-azul-10 hover:text-azul" title="Cerrar sesión">
+            <button onClick={salir} disabled={consultaEnCurso} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-gris hover:bg-azul-10 hover:text-azul disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gris" title={consultaEnCurso ? (cargaMasivaEnCurso ? 'Espera a que termine la carga masiva' : 'Espera a que termine la consulta') : 'Cerrar sesión'}>
               <LogOut className="size-4" /><span className="hidden md:inline">Salir</span>
             </button>
           </div>

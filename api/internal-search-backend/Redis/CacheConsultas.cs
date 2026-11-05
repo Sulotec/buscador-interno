@@ -14,7 +14,8 @@ namespace internal_search_backend.Redis
     public class CacheConsultas : ICacheConsultas
     {
         // Cambiar la versión invalida todo lo guardado (p. ej. si cambia la forma de las respuestas).
-        private const string Prefijo = "consulta:v1:";
+        // v2: las personas incluyen la descripción del ubigeo
+        private const string Prefijo = "consulta:v2:";
 
         private readonly IDistributedCache? _cache;
         private readonly IConnectionMultiplexer? _redis;

@@ -39,7 +39,7 @@ function agruparPorDocumento(registros: Movil[]) {
   }));
 }
 
-function detectarTipoDocumento(documento: string): TipoDocumento | null {
+export function detectarTipoDocumento(documento: string): TipoDocumento | null {
   if (/^\d{8}$/.test(documento)) return 'DNI';
   if (/^\d{9}$/.test(documento)) return 'CE';
   if (/^\d{11}$/.test(documento)) return 'RUC';
@@ -231,7 +231,9 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
               selectorBusquedaRef.current?.querySelector('summary')?.focus();
             }
           }}>
-            <summary aria-label="Buscar por" aria-haspopup="listbox" className="focus-control flex h-10 list-none cursor-pointer items-center justify-between rounded-xl border-2 border-borde bg-white px-3 pr-3 text-sm font-semibold text-texto shadow-sm transition-colors hover:border-azul [&::-webkit-details-marker]:hidden">
+            <summary aria-label="Buscar por" aria-haspopup="listbox" aria-disabled={cargando || undefined} tabIndex={cargando ? -1 : undefined}
+              onClick={(evento) => { if (cargando) evento.preventDefault(); }}
+              className="focus-control flex h-10 list-none cursor-pointer items-center aria-disabled:cursor-not-allowed aria-disabled:opacity-60 justify-between rounded-xl border-2 border-borde bg-white px-3 pr-3 text-sm font-semibold text-texto shadow-sm transition-colors hover:border-azul [&::-webkit-details-marker]:hidden">
               {etiqueta[tipo]}<ChevronDown className="size-4 shrink-0 text-azul transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             {!cargando && <div role="listbox" aria-label="Criterio de búsqueda" className="absolute left-0 top-full z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-borde bg-white p-1 shadow-lg">

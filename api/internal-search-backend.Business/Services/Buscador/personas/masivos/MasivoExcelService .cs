@@ -12,6 +12,9 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
             CrearResumen(workbook, resultado, secciones);
 
+            if (secciones.Contains(SeccionesMasivo.Personas))
+                CrearPersonas(workbook, resultado.Personas);
+
             if (secciones.Contains(SeccionesMasivo.Moviles))
                 CrearMoviles(workbook, resultado.Moviles);
 
@@ -66,6 +69,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 fila++;
             }
 
+            AgregarConteo(SeccionesMasivo.Personas, "Registros de personas", resultado.Personas.Count);
             AgregarConteo(SeccionesMasivo.Moviles, "Registros móviles", resultado.Moviles.Count);
             AgregarConteo(SeccionesMasivo.Sueldos, "Registros de sueldos", resultado.Sueldos.Count);
             AgregarConteo(SeccionesMasivo.Calificacion, "Registros de calificaciones", resultado.Calificaciones.Count);
@@ -74,6 +78,46 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             AgregarConteo(SeccionesMasivo.Fallecidos, "Documentos con fallecimiento registrado", resultado.Fallecidos.Count);
             hoja.Columns().AdjustToContents();
         }
+        // Mismas columnas que la pestaña Personas de la consulta individual
+        private void CrearPersonas(
+            XLWorkbook workbook,
+            List<PersonaOperador> datos)
+        {
+            var hoja = workbook.Worksheets.Add("Personas");
+
+            var headers = new[]
+            {
+                "Tipo Doc.",
+                "DNI",
+                "Fecha Nacimiento",
+                "Apellido Paterno",
+                "Apellido Materno",
+                "Prenombres",
+                "UBIGEO RENIEC",
+            };
+
+            for (int i = 0; i < headers.Length; i++)
+                hoja.Cell(1, i + 1).Value = headers[i];
+
+            for (int i = 0; i < datos.Count; i++)
+            {
+                var fila = i + 2;
+                var p = datos[i];
+
+                hoja.Cell(fila, 1).Value = p.TipoDoc;
+                hoja.Cell(fila, 2).Value = p.Dni;
+                hoja.Cell(fila, 3).Value = p.FechaNacimiento;
+                hoja.Cell(fila, 4).Value = p.ApePat;
+                hoja.Cell(fila, 5).Value = p.ApeMat;
+                hoja.Cell(fila, 6).Value = p.Prenombres;
+                // Descripción del ubigeo (RNC.Ubigeos); si el código no está en el catálogo, el código
+                hoja.Cell(fila, 7).Value = string.IsNullOrWhiteSpace(p.UbigeoDescripcion) ? p.UbigeoReniec : p.UbigeoDescripcion;
+            }
+
+            hoja.Column(3).Style.DateFormat.Format = "dd/MM/yyyy";
+            FormatearHoja(hoja, headers.Length);
+        }
+
         private void CrearMoviles(
             XLWorkbook workbook,
             List<Movil> datos)

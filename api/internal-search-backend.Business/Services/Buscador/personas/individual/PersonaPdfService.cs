@@ -33,6 +33,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             resultado.Calificaciones ??= new();
             resultado.Sueldos ??= new();
             resultado.Moviles ??= new();
+            resultado.Personas ??= new();
 
             return Document.Create(document =>
             {
@@ -56,6 +57,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         AgregarLineasCreditoVista(column, resultado);
                         AgregarPeriodoReporte(column, resultado);
                         AgregarSueldos(column, resultado);
+                        AgregarPersonas(column, resultado);
                         AgregarMoviles(column, resultado);
                     });
 
@@ -467,6 +469,25 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     FormatearPeriodo(sueldo.Periodo), Mostrar(sueldo.Empresa), Mostrar(sueldo.Ruc),
                     Mostrar(sueldo.RangoSueldo), Mostrar(sueldo.NivelIngreso)
                 }).ToList(), "No registra información laboral.");
+
+        // Mismas columnas que la pestaña Personas de la pantalla. Solo aplica a DNI: para otros documentos
+        // la lista siempre viene vacía, así que la sección se omite para no mostrar un recuadro vacío.
+        private static void AgregarPersonas(ColumnDescriptor column, BuscadorHistorialResponse resultado)
+        {
+            var esDni = string.Equals(resultado.TipoDocumento, "DNI", StringComparison.OrdinalIgnoreCase);
+            if (!esDni && resultado.Personas.Count == 0)
+                return;
+
+            AgregarSeccionEstandard(column, "Personas", resultado.Personas.Count,
+                new[] { "Tipo doc.", "DNI", "Fecha nacimiento", "Apellido paterno", "Apellido materno", "Prenombres", "Ubigeo RENIEC" },
+                resultado.Personas.Select(persona => new[]
+                {
+                    Mostrar(persona.TipoDoc), Mostrar(persona.Dni),
+                    persona.FechaNacimiento?.ToString("dd/MM/yyyy", Cultura) ?? "—",
+                    Mostrar(persona.ApePat), Mostrar(persona.ApeMat), Mostrar(persona.Prenombres),
+                    Mostrar(string.IsNullOrWhiteSpace(persona.UbigeoDescripcion) ? persona.UbigeoReniec : persona.UbigeoDescripcion)
+                }).ToList(), "No registra personas.");
+        }
 
         private static void AgregarMoviles(ColumnDescriptor column, BuscadorHistorialResponse resultado) =>
             AgregarSeccionEstandard(column, "Teléfonos", SoloUltimoPeriodo(resultado.Moviles, item => item.Periodo).Count,

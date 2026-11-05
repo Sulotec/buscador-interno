@@ -9,7 +9,7 @@ import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Vacio } fro
 import { ErrorApi, guardarArchivo } from '@/lib/api';
 import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
-import { BusquedaGlobalPersonas } from '@/modulos/personas/busqueda-global';
+import { BusquedaGlobalPersonas, detectarTipoDocumento } from '@/modulos/personas/busqueda-global';
 import { BUSQUEDA_NOMBRES_DISPONIBLE, ConsultaIndividual } from '@/modulos/personas/consulta-individual';
 import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre, ResultadoTelefono } from '@/modulos/personas/tipos';
@@ -84,6 +84,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
   const setApeMatFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, apellidoMaternoFallecido: value }));
   const setPrenombresFallecido = (value: string) => setBusquedaPersona((state) => ({ ...state, prenombresFallecido: value }));
   const setResultadoFallecido = (value: ResultadoFallecidos | null) => setBusquedaPersona((state) => ({ ...state, resultadoFallecido: value }));
+  const [mostrarClientesTelefono, setMostrarClientesTelefono] = useState(false);
+  const [cargandoClienteTelefono, setCargandoClienteTelefono] = useState(false);
+  const [filtroClienteTelefono, setFiltroClienteTelefono] = useState('');
   const documentoTelefonoSeleccionado = esSegmento ? estadoSegmento.documentoTelefonoSeleccionado : busquedaPersona.documentoTelefonoSeleccionado;
   const setDocumentoTelefonoSeleccionado = (value: string | null) => esSegmento ? actualizarSegmento({ documentoTelefonoSeleccionado: value }) : setBusquedaPersona((state) => ({ ...state, documentoTelefonoSeleccionado: value }));
   const mostrarResultadosPorTab = esSegmento ? estadoSegmento.mostrarResultadosPorTab : busquedaPersona.mostrarResultadosPorTab;
@@ -115,7 +118,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     setResultadosNombres(null); setDocumentoNombreSeleccionado(''); setMostrarPersonasNombres(false); setFiltroPersonaNombres('');
     setDniFallecido(''); setApePatFallecido(''); setApeMatFallecido(''); setPrenombresFallecido('');
     setResultadoFallecido(null);
-    setDocumentoTelefonoSeleccionado(null);
+    setMostrarClientesTelefono(false); setFiltroClienteTelefono(''); setDocumentoTelefonoSeleccionado(null);
     setMostrarResultadosPorTab(false); setCategoriaResultados('telefonos');
     setError('');
   }
@@ -142,8 +145,15 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
 
   const bloquearNombresFallecido = Boolean(dniFallecido.trim());
   const bloquearDniFallecido = Boolean(apePatFallecido.trim() || apeMatFallecido.trim() || prenombresFallecido.trim());
+  const accionEnCurso = cargandoPdf || cargandoReniec || cargandoClienteTelefono;
   const bloqueandoCambioModo = cargando || cargandoReniec;
-  const consultaEnCurso = busquedaGlobalCargando || cargando;
+  const consultaEnCurso = busquedaGlobalCargando || cargando || accionEnCurso;
+
+  // El menú lateral lee este estado para bloquearse mientras se descarga el PDF o se consulta RENIEC
+  useEffect(() => {
+    setBusquedaPersona((s) => (s.accionEnCurso === accionEnCurso ? s : { ...s, accionEnCurso }));
+  }, [accionEnCurso, setBusquedaPersona]);
+  useEffect(() => () => setBusquedaPersona((s) => (s.accionEnCurso ? { ...s, accionEnCurso: false } : s)), [setBusquedaPersona]);
 
   const botonFallecidosDeshabilitado = cargando || (
     bloquearNombresFallecido
@@ -187,6 +197,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
       return;
     }
     setCargando(true);
+    // Documento del único cliente del teléfono (si hay uno solo), para cargar sus datos en segmento
+    let documentoUnico: string | null = null;
     try {
       const resultado = await servicioPersonas.porTelefono(num);
       setTelefono(resultado);
@@ -196,13 +208,42 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
         return [clave, { clave, documento: registro.documento }] as const;
       })).values()];
       setDocumentoTelefonoSeleccionado(clientesUnicos.length === 1 ? clientesUnicos[0].documento?.trim() || clientesUnicos[0].clave : null);
+      documentoUnico = clientesUnicos.length === 1 ? clientesUnicos[0].documento?.trim() || null : null;
+      setFiltroClienteTelefono('');
+      setMostrarClientesTelefono(false);
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo realizar la consulta.');
     } finally {
       setCargando(false);
       actualizarSaldo();
     }
+    return documentoUnico;
   }, [actualizarSaldo, setModo, setTelefono, setEntradaTelefono, setVistaBusqueda, tipoConsulta]);
+
+  // Segmento: al elegir un cliente del teléfono se consultan sus datos (cuesta 1 token, como en la búsqueda global)
+  async function cargarClienteTelefono(documento: string) {
+    const valor = documento.trim();
+    setPersona(null);
+    setConsultado(null);
+    setReniec(null);
+    const tipoDocumento = detectarTipoDocumento(valor);
+    if (!tipoDocumento) {
+      setError('No se pudo identificar el tipo de documento del cliente seleccionado.');
+      return;
+    }
+    setError('');
+    setCargandoClienteTelefono(true);
+    try {
+      const respuesta = await servicioPersonas.porDocumento(tipoDocumento, valor);
+      setPersona(respuesta);
+      setConsultado({ tipo: tipoDocumento, numero: respuesta.documento });
+    } catch (e) {
+      setError(e instanceof ErrorApi ? e.message : 'No se pudo cargar la información del cliente.');
+    } finally {
+      setCargandoClienteTelefono(false);
+      actualizarSaldo();
+    }
+  }
 
   async function buscarPorNombres() {
     setVistaBusqueda('local');
@@ -380,6 +421,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     const clave = registro.documento?.trim() || nombre;
     return [clave, { clave, documento: registro.documento, nombre, periodo: registro.periodo }] as const;
   }) ?? []).values()];
+  const clientesTelefonoFiltrados = clientesTelefono.filter((cliente) =>
+    `${cliente.nombre} ${cliente.documento ?? ''}`.toLocaleLowerCase().includes(filtroClienteTelefono.trim().toLocaleLowerCase()),
+  );
   const registrosTelefonoVisibles = telefono?.registros.filter((registro) =>
     !documentoTelefonoSeleccionado || (registro.documento?.trim() || nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat)) === documentoTelefonoSeleccionado,
   ) ?? [];
@@ -421,6 +465,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
           </li>
         </ol>
       </Modal>
+      {/* Mientras se descarga el PDF o se consulta RENIEC, el fieldset deshabilita los formularios de búsqueda */}
+      <fieldset disabled={accionEnCurso} aria-busy={accionEnCurso || undefined} className={`min-w-0 space-y-6 ${accionEnCurso ? 'pointer-events-none select-none' : ''}`}>
       {tipoConsulta === 'global' && <BusquedaGlobalPersonas
         activa
         documentoTelefonoSeleccionado={documentoTelefonoSeleccionado}
@@ -432,6 +478,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
           setConsultado(null);
           setReniec(null);
           setDocumentoTelefonoSeleccionado(null);
+          setMostrarClientesTelefono(false);
           setMostrarResultadosPorTab(false);
         }}
         alEncontrarTelefono={(resultado: ResultadoTelefono) => {
@@ -466,7 +513,12 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
         entradaTelefono={entradaTelefono} setEntradaTelefono={setEntradaTelefono}
         cargando={cargando} bloqueandoCambioModo={bloqueandoCambioModo}
         setError={setError}
-        buscarDocumento={buscarDocumento} buscarTelefono={buscarTelefono}
+        buscarDocumento={buscarDocumento}
+        buscarTelefono={async (numero) => {
+          // Si el teléfono tiene un solo cliente, se cargan sus datos directamente
+          const documentoUnico = await buscarTelefono(numero);
+          if (documentoUnico) await cargarClienteTelefono(documentoUnico);
+        }}
         apePat={apePat} setApePat={setApePat} apeMat={apeMat} setApeMat={setApeMat}
         nombres={nombres} setNombres={setNombres} buscarPorNombres={buscarPorNombres}
         dniFallecido={dniFallecido} setDniFallecido={setDniFallecido}
@@ -476,6 +528,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
         bloquearNombresFallecido={bloquearNombresFallecido} bloquearDniFallecido={bloquearDniFallecido}
         botonFallecidosDeshabilitado={botonFallecidosDeshabilitado} buscarFallecido={buscarFallecido}
       />
+      </fieldset>
       {error && <Aviso tono="error" alCerrar={() => setError('')}>{error}</Aviso>}
       {tipoConsulta === 'segmento' && cargando && (
         <div className="rounded-xl border border-borde bg-white"><Cargando texto={modo === 'documento' ? 'Consultando datos de la persona...' : modo === 'telefono' ? 'Consultando líneas asociadas...' : modo === 'nombres' ? 'Buscando coincidencias...' : 'Consultando registros de fallecidos...'} /></div>
@@ -489,8 +542,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
               {nombrePersona && <p className="numeros mt-0.5 text-sm text-gris">{DOCUMENTOS[consultado?.tipo ?? 'DNI'].etiqueta} {persona.documento}</p>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Boton variante="primario" className="shadow-md hover:-translate-y-0.5 hover:shadow-lg" onClick={exportarPdf} cargando={cargandoPdf}><FileDown className="size-4" />Descargar PDF</Boton>
-              {consultado?.tipo === 'DNI' && !reniec && <Boton variante="secundario" className="!border-2 !border-azul !bg-white shadow-sm hover:-translate-y-0.5 hover:!bg-azul-10 hover:shadow-md" onClick={consultarReniec} cargando={cargandoReniec}><IdCard className="size-4 text-rojo" />Ver datos RENIEC</Boton>}
+              <Boton variante="primario" className="shadow-md hover:-translate-y-0.5 hover:shadow-lg" onClick={exportarPdf} cargando={cargandoPdf} disabled={consultaEnCurso}><FileDown className="size-4" />Descargar PDF</Boton>
+              {consultado?.tipo === 'DNI' && !reniec && <Boton variante="secundario" className="!border-2 !border-azul !bg-white shadow-sm hover:-translate-y-0.5 hover:!bg-azul-10 hover:shadow-md" onClick={consultarReniec} cargando={cargandoReniec} disabled={consultaEnCurso}><IdCard className="size-4 text-rojo" />Ver datos RENIEC</Boton>}
             </div>
           </div>
           {consultado?.tipo === 'DNI' && !persona.esDniValido && <Aviso tono="alerta">El DNI no figura como válido en las fuentes consultadas.</Aviso>}
@@ -634,18 +687,46 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
           ) : <Vacio icono={<UserRound className="size-5" />} titulo="Elige un cliente del teléfono">
             Selecciona un cliente en «Filtrar y elegir cliente» para consultar sus datos en esta pestaña.
           </Vacio> : <>
-            {tipoConsulta === 'global' && <>
               <div className="flex flex-wrap items-center gap-2">
+                {tipoConsulta === 'segmento' && clientesTelefono.length > 1 && <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => { setFiltroClienteTelefono(''); setMostrarClientesTelefono(true); }}><UserRound className="size-4" />{documentoTelefonoSeleccionado ? 'Cambiar cliente' : 'Filtrar clientes'}</Boton>}
                 {clientesTelefono.length > 1 && documentoTelefonoSeleccionado && <Boton type="button" variante="fantasma" disabled={consultaEnCurso} onClick={() => {
                 setDocumentoTelefonoSeleccionado(null);
                 setPersona(null);
                 setConsultado(null);
                 setReniec(null);
-                setMostrarResultadosPorTab(false);
-                setCategoriaResultados('telefonos');
+                if (tipoConsulta === 'global') {
+                  setMostrarResultadosPorTab(false);
+                  setCategoriaResultados('telefonos');
+                }
               }}>Limpiar filtro</Boton>}
               </div>
-            </>}
+              {tipoConsulta === 'segmento' && mostrarClientesTelefono && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={(e) => { if (!consultaEnCurso && e.target === e.currentTarget) setMostrarClientesTelefono(false); }}>
+                <section role="dialog" aria-modal="true" aria-labelledby="clientes-telefono-tab-titulo" className="flex max-h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-borde bg-white shadow-xl">
+                  <header className="flex items-start justify-between gap-4 border-b border-borde px-5 py-4">
+                    <div><h3 id="clientes-telefono-tab-titulo" className="font-semibold text-texto">Elige el cliente del teléfono</h3><p className="mt-1 text-xs text-gris">Filtra por nombre o documento. Al elegir un cliente, se cerrará esta ventana y verás sus líneas filtradas por documento. Se encontraron {clientesTelefono.length} clientes/documentos asociados.</p></div>
+                    <button type="button" aria-label="Cerrar" disabled={consultaEnCurso} onClick={() => setMostrarClientesTelefono(false)} className="rounded-lg p-2 text-gris hover:bg-fondo hover:text-texto disabled:opacity-50"><X className="size-4" /></button>
+                  </header>
+                  <div className="border-b border-borde p-4">
+                    <div className="flex gap-2">
+                      <label className="relative block min-w-0 flex-1"><span className="sr-only">Filtrar clientes</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gris" /><input autoFocus disabled={consultaEnCurso} value={filtroClienteTelefono} onChange={(e) => setFiltroClienteTelefono(e.target.value)} className="input input--icono" placeholder="Buscar por nombre o documento" /></label>
+                      <Boton type="button" variante="secundario" disabled={consultaEnCurso} onClick={() => setFiltroClienteTelefono('')}>Limpiar</Boton>
+                    </div>
+                  </div>
+                  <ul className="min-h-0 divide-y divide-borde overflow-y-auto">
+                    {clientesTelefonoFiltrados.map((cliente) => <li key={cliente.clave}>
+                      <button type="button" disabled={consultaEnCurso} aria-pressed={cliente.clave === documentoTelefonoSeleccionado} onClick={() => {
+                        setDocumentoTelefonoSeleccionado(cliente.documento?.trim() || cliente.clave);
+                        setMostrarClientesTelefono(false);
+                        if (cliente.documento?.trim()) void cargarClienteTelefono(cliente.documento);
+                        else { setPersona(null); setConsultado(null); setReniec(null); }
+                      }} className={`flex w-full items-center justify-between gap-4 px-5 py-3 text-left focus-visible:outline-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-60 ${cliente.clave === documentoTelefonoSeleccionado ? 'bg-azul-10 ring-1 ring-inset ring-azul/30' : 'hover:bg-azul-10/50'}`}>
+                        <span className="flex min-w-0 items-center gap-3"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-texto">{cliente.nombre}</span><span className="mt-0.5 block text-xs text-gris">Documento {fTexto(cliente.documento)} · {fPeriodo(cliente.periodo)}</span></span>{cliente.clave === documentoTelefonoSeleccionado && <Check aria-label="Cliente seleccionado" className="size-4 shrink-0 text-azul" />}</span>
+                      </button>
+                    </li>)}
+                    {!clientesTelefonoFiltrados.length && <li className="px-5 py-8 text-center text-sm text-gris">No hay clientes que coincidan con el filtro.</li>}
+                  </ul>
+                </section>
+              </div>}
               <Seccion titulo="Líneas encontradas" icono={<Phone className="size-[18px]" />} cantidad={registrosTelefonoVisibles.length}>
                 {busquedaGlobalCargando ? <Cargando texto="Cargando datos del cliente..." /> : <>
                 <div className="divide-y divide-borde sm:hidden">
@@ -673,6 +754,22 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                 </div>
               </>}
               </Seccion>
+              {/* Segmento: datos del cliente elegido del teléfono */}
+              {tipoConsulta === 'segmento' && documentoTelefonoSeleccionado && (cargandoClienteTelefono
+                ? <div className="rounded-xl border border-borde bg-white"><Cargando texto="Cargando datos del cliente..." /></div>
+                : persona && <div className="space-y-4 border-t border-borde pt-5">
+                  <div>
+                    <h2 className="text-lg font-semibold text-texto">{nombrePersona || `${DOCUMENTOS[consultado?.tipo ?? 'DNI'].etiqueta} ${persona.documento}`}</h2>
+                    <p className="numeros mt-0.5 text-sm text-gris">{DOCUMENTOS[consultado?.tipo ?? 'DNI'].etiqueta} {persona.documento}</p>
+                  </div>
+                  <Resumen s={persona} />
+                  <SeccionesResultado s={persona} ocultarTelefonos />
+                  {consultado?.tipo === 'DNI' && <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>
+                    <Tabla columnas={columnasFallecidos} filas={persona.fallecidos ?? []} clave={(r) => r.dni} vacio="No registra fallecimiento." />
+                  </Seccion>}
+                  <SeccionPersonas filas={persona.personas} />
+                  <SeccionesResultado s={persona} categoria="telefonos" />
+                </div>)}
           </>}
         </div>
       )}

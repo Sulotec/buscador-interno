@@ -1,17 +1,17 @@
 'use client';
 // Carga masiva (personas o empresas): 1) secciones, 2) documentos, 3) procesar y descargar el Excel.
 import clsx from 'clsx';
-import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Aviso, Boton, Chip, Pestanas, Tarjeta } from '@/components/ui';
 import { guardarArchivo, type Archivo } from '@/lib/api';
 import { fNumero } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, seccionesDe, type TipoLista } from './documentos';
+import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, revisarLineas, seccionesDe, type TipoLista } from './documentos';
 import { combinarExcels } from './combinar-excels';
 import { HistorialDescargas } from './historial';
 import { servicioMasiva } from './servicio';
-import { useEstadoCarga } from './estado';
+import { cargaOcupada, useEstadoCarga } from './estado';
 import type { HistorialDescarga } from './tipos';
 
 type Fuente = 'pegar' | 'archivo';
@@ -51,7 +51,23 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
 
   const etiqueta = tipo === 'empresas' ? 'RUC' : 'documentos';
   const analisis = useMemo(() => analizar(texto, tipo), [texto, tipo]);
-  const ocupado = fase.tipo === 'subiendo' || fase.tipo === 'procesando' || fase.tipo === 'consolidando';
+  // Documentos que no irán al Excel (formato no válido o repetidos); se marcan en rojo en la lista
+  const lineas = useMemo(() => revisarLineas(texto, tipo), [texto, tipo]);
+  const excluidos = analisis.invalidos.length + analisis.duplicados;
+  const fondoListaRef = useRef<HTMLDivElement>(null);
+  const quitarNoIncluidos = () => {
+    setTexto(lineas.filter((l) => l.estado === 'valido').map((l) => l.texto.trim()).join('\n'));
+    setNombreArchivo('');
+  };
+  const ocupado = cargaOcupada(fase);
+
+  // Mientras procesa, avisar si intenta cerrar o recargar la pestaña (se perdería la carga en curso).
+  useEffect(() => {
+    if (!ocupado) return;
+    const avisar = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [ocupado]);
   const pasoActual = !analisis.validos.length ? 1 : !secciones.length ? 2 : 3;
 
   const cargarHistorial = useCallback(() => {
@@ -73,8 +89,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
 
   const problema = !secciones.length ? 'Elige al menos una sección.'
     : !analisis.validos.length ? `Agrega al menos un ${tipo === 'empresas' ? 'RUC' : 'documento'} válido.`
-      : analisis.invalidos.length ? 'Corrige o elimina las entradas no válidas antes de procesar.'
-        : analisis.validos.length > LIMITE_DOCUMENTOS ? `El máximo es ${fNumero(LIMITE_DOCUMENTOS)} por carga.` : null;
+      : analisis.validos.length > LIMITE_DOCUMENTOS ? `El máximo es ${fNumero(LIMITE_DOCUMENTOS)} por carga.` : null;
   const claveSolicitud = JSON.stringify([tipo, secciones, analisis.validos]);
   const progresoSolicitud = progresoBloques?.clave === claveSolicitud ? progresoBloques : null;
 
@@ -172,7 +187,8 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
         </div>
       </Tarjeta>
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      {/* Mientras procesa, el fieldset deshabilita todos los controles de los pasos 1 y 2 */}
+      <fieldset disabled={ocupado} aria-busy={ocupado} className={clsx('grid min-w-0 items-start gap-5 xl:grid-cols-2 transition-opacity', ocupado && 'pointer-events-none select-none opacity-60')}>
       <Paso numero={1} titulo={`Agrega los ${etiqueta}`} descripcion="Pega una lista o carga un archivo .txt o .csv." icono={ClipboardPaste} hecho={analisis.validos.length > 0} activo={pasoActual === 1}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
@@ -192,13 +208,37 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
               <span className="text-xs font-semibold text-gris text-red-800 ">Un documento por línea · máximo {fNumero(LIMITE_DOCUMENTOS)}</span>
             </div>
             <div className="overflow-hidden rounded-xl border-2 border-borde bg-white transition-colors focus-within:border-azul focus-within:ring-2 focus-within:ring-azul/15">
-            <textarea value={texto} onChange={(e) => { setTexto(e.target.value.replace(/[\s,;|/\\]+/g, '\n')); setNombreArchivo(''); }} rows={8} disabled={ocupado}
-              placeholder={tipo === 'empresas' ? 'Pega un RUC por línea\n20100000001\n20100000002' : 'Pega un documento por línea\n12345678\n87654321'}
-              aria-label={`Lista de ${etiqueta} para procesar`}
-              className="focus-control numeros min-h-48 w-full resize-none border-0 bg-transparent p-4 text-sm leading-6 placeholder:text-gris/70 focus:outline-none focus:ring-0" />
-            <div className={clsx('flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-[11px]', analisis.invalidos.length > 0 ? 'border-peligro/20 bg-peligro-10 text-peligro' : 'border-borde bg-fondo/40 text-gris')}>
-              <span>{analisis.invalidos.length > 0 ? `${fNumero(analisis.invalidos.length)} entradas no válidas; corrígelas para procesar.` : 'Un documento por línea. Se omiten encabezados y duplicados.'}</span>
-              <span className="numeros shrink-0">{fNumero(analisis.validos.length)} válidos</span>
+            {/* El texto del cuadro es transparente y, detrás, la misma lista se dibuja con las líneas
+                que no se incluirán marcadas en rojo. Ambos usan la misma letra y espaciado para coincidir. */}
+            <div className="relative">
+              <div ref={fondoListaRef} aria-hidden className="numeros pointer-events-none absolute inset-0 overflow-hidden whitespace-pre p-4 text-sm leading-6 text-texto">
+                {texto && lineas.map((linea, i) => (
+                  <div key={i} className={clsx(linea.estado === 'invalido' || linea.estado === 'repetido' ? 'rounded bg-peligro-10 text-peligro' : '')}>
+                    <span className={clsx((linea.estado === 'invalido' || linea.estado === 'repetido') && 'line-through decoration-peligro/60')}>{linea.texto || ' '}</span>
+                    {(linea.estado === 'invalido' || linea.estado === 'repetido') && (
+                      <span className="ml-3 text-[11px] font-semibold">
+                        ✗ No se incluirá: {linea.estado === 'invalido' ? 'formato no válido' : `repetido (línea ${linea.repetidoDe})`}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <textarea value={texto} onChange={(e) => { setTexto(e.target.value.replace(/[\s,;|/\\]+/g, '\n')); setNombreArchivo(''); }} rows={8} disabled={ocupado}
+                onScroll={(e) => { if (fondoListaRef.current) { fondoListaRef.current.scrollTop = e.currentTarget.scrollTop; fondoListaRef.current.scrollLeft = e.currentTarget.scrollLeft; } }}
+                placeholder={tipo === 'empresas' ? 'Pega un RUC por línea\n20100000001\n20100000002' : 'Pega un documento por línea\n12345678\n87654321'}
+                aria-label={`Lista de ${etiqueta} para procesar`}
+                aria-describedby="resumen-lista-masiva"
+                spellCheck={false}
+                className="focus-control numeros relative min-h-48 w-full resize-none whitespace-pre border-0 bg-transparent p-4 text-sm leading-6 text-transparent caret-texto placeholder:text-gris/70 selection:bg-azul/25 focus:outline-none focus:ring-0" />
+            </div>
+            <div id="resumen-lista-masiva" className={clsx('flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-[11px]', excluidos > 0 ? 'border-peligro/20 bg-peligro-10 text-peligro' : 'border-borde bg-fondo/40 text-gris')}>
+              <span>{excluidos > 0
+                ? `${fNumero(excluidos)} no se incluirán (marcados en rojo). El Excel se generará solo con los válidos.`
+                : 'Un documento por línea. Se omiten encabezados.'}</span>
+              <span className="flex shrink-0 items-center gap-3">
+                {excluidos > 0 && <button type="button" onClick={quitarNoIncluidos} className="font-semibold underline underline-offset-2 hover:no-underline">Quitar no válidos</button>}
+                <span className="numeros">{fNumero(analisis.validos.length)} se incluirán</span>
+              </span>
             </div>
             </div>
           </>
@@ -214,8 +254,8 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
         {(analisis.validos.length > 0 || analisis.invalidos.length > 0) && (
           <div className="numeros mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-[#f5f7fb] p-3 text-sm">
             {analisis.porTipo.map((t) => <Chip key={t.nombre} tono="verde">{fNumero(t.cantidad)} {t.nombre}</Chip>)}
-            {analisis.duplicados > 0 && <Chip>{fNumero(analisis.duplicados)} repetidos (se omiten)</Chip>}
-            {analisis.invalidos.length > 0 && <Chip tono="ambar">{fNumero(analisis.invalidos.length)} no válidos: {analisis.invalidos.slice(0, 3).join(', ')}{analisis.invalidos.length > 3 ? '…' : ''}</Chip>}
+            {analisis.duplicados > 0 && <Chip tono="peligro">{fNumero(analisis.duplicados)} repetidos (no se incluirán)</Chip>}
+            {analisis.invalidos.length > 0 && <Chip tono="peligro">{fNumero(analisis.invalidos.length)} no válidos (no se incluirán): {analisis.invalidos.slice(0, 3).join(', ')}{analisis.invalidos.length > 3 ? '…' : ''}</Chip>}
           </div>
         )}
       </Paso>
@@ -233,7 +273,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
         <div className="grid gap-2.5 sm:grid-cols-2">
           {SECCIONES.map((s) => {
             const marcada = secciones.includes(s.id);
-            const iconos = { moviles: Phone, sueldos: BriefcaseBusiness, deuda: Banknote, 'lineas-credito': CreditCard, calificacion: Gauge, fallecidos: HeartCrack };
+            const iconos = { personas: UserRound, moviles: Phone, sueldos: BriefcaseBusiness, deuda: Banknote, 'lineas-credito': CreditCard, calificacion: Gauge, fallecidos: HeartCrack };
             const IconoSeccion = iconos[s.id as keyof typeof iconos] ?? Database;
             return (
               <label key={s.id} className={clsx('flex min-h-16 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-azul/20', marcada ? 'border-azul-25 bg-azul-10/60 text-texto' : 'border-borde bg-white text-texto hover:bg-fondo/60')}>
@@ -247,7 +287,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           })}
         </div>
       </Paso>
-      </div>
+      </fieldset>
 
       <Paso numero={3} titulo="Procesa y descarga el Excel" descripcion="Inicia la consulta para generar tu archivo con los resultados." icono={FileSpreadsheet} hecho={fase.tipo === 'listo'} activo={pasoActual === 3}>
         {error && <div className="mb-4"><Aviso tono="error" alCerrar={() => setError('')}>{error}</Aviso></div>}
@@ -263,6 +303,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
               <div>
                 <p className="text-base font-bold tracking-tight text-texto">Tu archivo está casi listo</p>
                 <p className="mt-1 max-w-xl text-sm leading-5 text-gris">{analisis.validos.length ? `${fNumero(analisis.validos.length)} ${etiqueta} y ${secciones.length} secciones seleccionadas.` : 'Confirma tu lista y las secciones para generar el Excel.'}</p>
+                {excluidos > 0 && analisis.validos.length > 0 && <p className="mt-1 text-xs font-medium text-peligro">{fNumero(excluidos)} no se incluirán por ser no válidos o repetidos.</p>}
                 {problema && !ocupado && <p className="mt-2 text-xs font-medium text-ambar">{problema}</p>}
               </div>
             </div>
@@ -299,7 +340,9 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
         </div>
       </Paso>
 
-      <HistorialDescargas items={historial} cargando={cargandoHistorial} />
+      <fieldset disabled={ocupado} aria-busy={ocupado} className={clsx('min-w-0 transition-opacity', ocupado && 'pointer-events-none select-none opacity-60')}>
+        <HistorialDescargas items={historial} cargando={cargandoHistorial} />
+      </fieldset>
     </div>
   );
 }

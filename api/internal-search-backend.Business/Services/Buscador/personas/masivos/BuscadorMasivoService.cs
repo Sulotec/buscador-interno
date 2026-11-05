@@ -36,7 +36,8 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             result.DocumentosInvalidos = invalidos;
 
             // Solo cuentan las secciones consultadas: las no seleccionadas quedan vacías
-            var encontrados = result.Moviles.Select(x => x.Documento)
+            var encontrados = result.Personas.Select(x => x.Dni)
+                .Concat(result.Moviles.Select(x => x.Documento))
                 .Concat(result.Sueldos.Select(x => x.Documento))
                 .Concat(result.Calificaciones.Select(x => x.Documento))
                 .Concat(result.Deudas.Select(x => x.Documento))

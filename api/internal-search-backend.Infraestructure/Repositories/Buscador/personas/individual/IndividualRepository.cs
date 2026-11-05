@@ -2,6 +2,7 @@
 using internal_search.Domain.Interfaces.Buscador.personas.individual;
 using Microsoft.EntityFrameworkCore;
 using System.Transactions;
+using internal_search_backend.Infraestructure.Repositories.Buscador.personas;
 
 using internal_search.Domain.DTOs.buscador.persona.individual;
 
@@ -142,12 +143,16 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
             return resultado;
         }
 
-        public Task<List<PersonaOperador>> BuscarPersonasPorDniAsync(string dni, CancellationToken ct) =>
-            _context.PersonasOperador
+        public async Task<List<PersonaOperador>> BuscarPersonasPorDniAsync(string dni, CancellationToken ct)
+        {
+            var personas = await _context.PersonasOperador
                 .AsNoTracking()
                 .Where(x => x.Dni == dni)
                 .OrderBy(x => x.Id)
                 .ToListAsync(ct);
+            await _context.CompletarUbigeosAsync(personas, ct);
+            return personas;
+        }
 
         public async Task<List<Movil>> BuscarPorTelefonoAsync(
             string telefono,
@@ -257,6 +262,7 @@ namespace internal_search_backend.Infraestructure.Repositories.Buscador.personas
                     .Where(x => x.Dni != null && documentos.Contains(x.Dni))
                     .OrderBy(x => x.Id)
                     .ToListAsync(ct);
+                await _context.CompletarUbigeosAsync(personas, ct);
                 var deudas = await _context.Deudas.AsNoTracking()
                     .Where(x => documentos.Contains(x.Documento!) && x.Periodo != null && periodosDeuda.Contains(x.Periodo))
                     .OrderByDescending(x => x.Periodo).ToListAsync(ct);

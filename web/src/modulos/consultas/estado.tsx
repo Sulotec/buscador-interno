@@ -45,6 +45,8 @@ type DatosBusquedaPersona = {
   categoriaResultados: string;
   mostrarResultadosPorTab: boolean;
   cargandoLocal: boolean;
+  // Descarga del PDF o consulta RENIEC en curso: bloquea el menú igual que una búsqueda
+  accionEnCurso: boolean;
   segmento: EstadoBusquedaSegmento;
   global: {
     tipo: TipoBusquedaGlobalPersona;
@@ -119,7 +121,7 @@ export function ProveedorEstadoConsultas({ children }: { children: ReactNode }) 
     vista: null,
     apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultadosNombres: null, documentoNombreSeleccionado: '',
     dniFallecido: '', apellidoPaternoFallecido: '', apellidoMaternoFallecido: '', prenombresFallecido: '', resultadoFallecido: null,
-    documentoTelefonoSeleccionado: null, categoriaResultados: 'telefonos', mostrarResultadosPorTab: false, cargandoLocal: false,
+    documentoTelefonoSeleccionado: null, categoriaResultados: 'telefonos', mostrarResultadosPorTab: false, cargandoLocal: false, accionEnCurso: false,
     segmento: { modo: 'documento', tipoDocumento: 'DNI', entradaDocumento: '', entradaTelefono: '', persona: null, consultado: null, reniec: null, telefono: null, vista: null, mostrarResultadosPorTab: false, categoriaResultados: 'telefonos', documentoTelefonoSeleccionado: null, cargando: false },
     global: { tipo: 'DNI', documentos: { DNI: '', CE: '', RUC: '', PASAPORTE: '' }, dniFallecido: '', telefono: '', apellidoPaterno: '', apellidoMaterno: '', nombres: '', resultado: null, resultadosPorTipo: {}, personaNombreSeleccionada: '', personasNombreSeleccionadas: {}, fichasPorTipo: {}, telefonoSeleccionado: null, cargando: false, cargandoFicha: false },
   });

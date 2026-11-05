@@ -10,5 +10,8 @@ namespace internal_search.Domain.Entities
         public string? ApeMat { get; set; }
         public string? Prenombres { get; set; }
         public string? UbigeoReniec { get; set; }
+        // UBIGEO_DESCRIPCION de RNC.Ubigeos para UbigeoReniec. No es columna de Operador.Personas:
+        // se completa después de la consulta (ver UbigeoExtensions.CompletarUbigeosAsync).
+        public string? UbigeoDescripcion { get; set; }
     }
 }

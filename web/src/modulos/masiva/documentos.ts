@@ -51,6 +51,25 @@ export function analizar(texto: string, tipo: TipoLista): Analisis {
   };
 }
 
+// Revisión línea por línea de la lista pegada (un documento por línea), para marcar en pantalla
+// cuáles no se incluirán en el Excel. Usa las mismas reglas que analizar().
+export type EstadoLinea = 'valido' | 'invalido' | 'repetido' | 'ignorado';
+export interface LineaRevisada { texto: string; estado: EstadoLinea; repetidoDe?: number }
+
+export function revisarLineas(texto: string, tipo: TipoLista): LineaRevisada[] {
+  const tipos = tipo === 'empresas' ? TIPOS_EMPRESAS : TIPOS_PERSONAS;
+  const primeraLinea = new Map<string, number>();
+  return texto.replace(/^﻿/, '').split('\n').map((bruto, indice) => {
+    const valor = bruto.replace(/["']/g, '').trim().toUpperCase();
+    if (!valor || ENCABEZADOS.test(valor)) return { texto: bruto, estado: 'ignorado' };
+    if (!tipos.some((t) => t.patron.test(valor))) return { texto: bruto, estado: 'invalido' };
+    const previa = primeraLinea.get(valor);
+    if (previa !== undefined) return { texto: bruto, estado: 'repetido', repetidoDe: previa + 1 };
+    primeraLinea.set(valor, indice);
+    return { texto: bruto, estado: 'valido' };
+  });
+}
+
 // La API recibe un .txt con un documento por linea.
 export function crearArchivo(documentos: string[], prefijo: string): File {
   const f = new Date();
@@ -65,6 +84,7 @@ export function plantilla(tipo: TipoLista): File {
 }
 
 export const SECCIONES = [
+  { id: 'personas', nombre: 'Personas', detalle: 'Nombres, fecha de nacimiento y ubigeo.', solo: 'personas' as TipoLista },
   { id: 'moviles', nombre: 'Teléfonos', detalle: 'Números, operadoras y planes.' },
   { id: 'sueldos', nombre: 'Información laboral', detalle: 'Empresas e ingresos reportados.' },
   { id: 'deuda', nombre: 'Deudas', detalle: 'Entidades, saldos y períodos.' },
@@ -73,5 +93,5 @@ export const SECCIONES = [
   { id: 'fallecidos', nombre: 'Fallecidos', detalle: 'Documentos con fecha de fallecimiento registrada.', solo: 'personas' as TipoLista },
 ];
 
-// Secciones disponibles segun el tipo de lista: fallecidos solo aplica a personas (DNI), no a empresas (RUC).
+// Secciones disponibles segun el tipo de lista: personas y fallecidos solo aplican a personas (DNI), no a empresas (RUC).
 export const seccionesDe = (tipo: TipoLista) => SECCIONES.filter((s) => !('solo' in s) || s.solo === tipo);
