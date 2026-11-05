@@ -14,6 +14,10 @@ const MENSAJES: Record<number, string> = {
   404: 'No se encontró lo que buscabas.',
   413: 'El archivo es demasiado grande (máximo 5 MB).',
   429: 'Demasiados intentos. Espera un momento y vuelve a intentar.',
+  500: 'El servidor no pudo completar la consulta. Si se cobraron tokens, se devolvieron. Intenta de nuevo en unos minutos.',
+  502: 'El servidor no está disponible en este momento. Intenta de nuevo en unos minutos.',
+  503: 'El servidor no está disponible en este momento. Intenta de nuevo en unos minutos.',
+  504: 'El servidor tardó demasiado en responder. Intenta de nuevo en unos minutos.',
 };
 
 async function mensajeDe(respuesta: Response): Promise<{ mensaje: string; fueraDeSede: boolean }> {
@@ -21,7 +25,8 @@ async function mensajeDe(respuesta: Response): Promise<{ mensaje: string; fueraD
   try {
     const datos = JSON.parse(texto);
     return {
-      mensaje: datos.message || datos.mensaje || datos.title || MENSAJES[respuesta.status] || 'Ocurrió un error.',
+      // En errores del servidor (5xx) el "title" es el genérico de ASP.NET en inglés: se muestra el mensaje propio
+      mensaje: datos.message || datos.mensaje || (respuesta.status < 500 ? datos.title : undefined) || MENSAJES[respuesta.status] || 'Ocurrió un error.',
       fueraDeSede: Boolean(datos.fueraDeSede),
     };
   } catch {

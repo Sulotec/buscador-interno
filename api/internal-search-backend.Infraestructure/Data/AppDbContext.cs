@@ -51,6 +51,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Movil>().HasNoKey();
         modelBuilder.Entity<Sueldo>().HasNoKey();
 
+        // El DNI de Fallecidos es texto no Unicode en la base. Sin esto EF envía los parámetros como nvarchar,
+        // SQL Server convierte la columna en cada fila, no usa el índice y recorre toda la tabla: en la carga
+        // masiva (1000 DNI por consulta) superaba los 30 s y fallaba con "Execution Timeout Expired".
+        modelBuilder.Entity<Fallecidos>().Property(x => x.Dni).IsUnicode(false);
+
         modelBuilder.Entity<PersonaOperador>(e =>
         {
             e.ToTable("Personas", "Operador");

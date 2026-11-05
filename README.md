@@ -52,6 +52,15 @@ Arquitectura por capas: `internal-search-backend` (controladores), `.Business` (
 
 **Plan (fase 2):** pasar la API a TypeScript módulo por módulo (login y tokens → personas → empresas → masivas), con los mismos contratos. Así `web/` no cambia.
 
+## Documentación
+
+La documentación técnica está en [`docs/`](docs/README.md):
+
+- [Arquitectura](docs/arquitectura.md): recorrido de una consulta, capas, tokens y auditoría.
+- [Datos y secciones](docs/datos-y-secciones.md): qué tabla alimenta cada sección y cómo agregar una nueva.
+- [Límites y Redis](docs/limites-y-redis.md): límites de peticiones, caché y cómo probarlos.
+- [Operación](docs/operacion.md): configuración, permisos SQL y qué revisar cuando algo falla.
+
 ## Trabajar en local
 
 **Frontend**

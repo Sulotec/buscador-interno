@@ -16,6 +16,9 @@ export type EstadoCarga = {
   nombreArchivo: string;
   fase: FaseCarga;
   error: string;
+  // Lista de más de 5000: documentos válidos que tenía al empezar la primera carga. Sirve para mostrar
+  // "Carga 2 de 4 · faltan 6.000". Vuelve a null cuando el usuario cambia la lista a mano.
+  serieTotal: number | null;
 };
 
 type EstadosCarga = Record<TipoLista, EstadoCarga>;
@@ -31,6 +34,7 @@ const estadoInicial = (): EstadoCarga => ({
   nombreArchivo: '',
   fase: { tipo: 'lista' },
   error: '',
+  serieTotal: null,
 });
 
 const ContextoCarga = createContext<ContextoEstadoCarga | null>(null);

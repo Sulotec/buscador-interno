@@ -10,7 +10,7 @@ namespace internal_search_backend.Infraestructure.Repositories.Reniec
         private readonly AppDbContext _db;
 
         public ReniecRepository(AppDbContext db) => _db = db;
-
+ 
         public async Task GuardarUltimaConsultaAsync(ConsultaReniec consulta, CancellationToken ct)
         {
             await using var transaccion = await _db.Database.BeginTransactionAsync(

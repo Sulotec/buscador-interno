@@ -1,5 +1,8 @@
 // Lectura de listas de documentos (pegadas o desde .txt/.csv) para la carga masiva.
 
+// Documentos por carga (un Excel). Una lista más grande se acepta entera: se procesan los primeros 5000 y el
+// resto queda pendiente para la carga siguiente, que el usuario lanza con un clic ("Cargar los pendientes").
+// Así cada carga dura poco y la pantalla no queda bloqueada varios minutos seguidos.
 export const LIMITE_DOCUMENTOS = 5_000;
 export const TAMANO_MAXIMO = 4_990_000; // la API acepta hasta 5 MB por peticion (incluye el formulario)
 export const TAMANO_BLOQUE_DOCUMENTOS = 500;
@@ -22,15 +25,20 @@ const TIPOS_EMPRESAS = [
 const ENCABEZADOS = /^(dni|ruc|ce|pasaporte|documento|documentos|nro|numero|número|tipo)$/i;
 
 export interface Analisis {
+  // Solo los que se procesarán en esta carga: válidos, sin repetir y dentro de LIMITE_DOCUMENTOS
   validos: string[];
   invalidos: string[];
   duplicados: number;
+  // Válidos que pasan LIMITE_DOCUMENTOS; quedan pendientes para la carga siguiente
+  excedentes: string[];
   porTipo: { nombre: string; cantidad: number }[];
 }
 
 export function analizar(texto: string, tipo: TipoLista): Analisis {
   const tipos = tipo === 'empresas' ? TIPOS_EMPRESAS : TIPOS_PERSONAS;
   const vistos = new Set<string>();
+  const incluidos: string[] = [];
+  const excedentes: string[] = [];
   const invalidos: string[] = [];
   const conteo = new Map<string, number>();
   let duplicados = 0;
@@ -41,24 +49,28 @@ export function analizar(texto: string, tipo: TipoLista): Analisis {
     if (!t) { invalidos.push(bruto); continue; }
     if (vistos.has(valor)) { duplicados++; continue; }
     vistos.add(valor);
+    if (incluidos.length >= LIMITE_DOCUMENTOS) { excedentes.push(valor); continue; }
+    incluidos.push(valor);
     conteo.set(t.nombre, (conteo.get(t.nombre) ?? 0) + 1);
   }
   return {
-    validos: [...vistos],
+    validos: incluidos,
     invalidos,
     duplicados,
+    excedentes,
     porTipo: tipos.filter((t) => conteo.has(t.nombre)).map((t) => ({ nombre: t.nombre, cantidad: conteo.get(t.nombre)! })),
   };
 }
 
 // Revisión línea por línea de la lista pegada (un documento por línea), para marcar en pantalla
 // cuáles no se incluirán en el Excel. Usa las mismas reglas que analizar().
-export type EstadoLinea = 'valido' | 'invalido' | 'repetido' | 'ignorado';
+export type EstadoLinea = 'valido' | 'invalido' | 'repetido' | 'excede' | 'ignorado';
 export interface LineaRevisada { texto: string; estado: EstadoLinea; repetidoDe?: number }
 
 export function revisarLineas(texto: string, tipo: TipoLista): LineaRevisada[] {
   const tipos = tipo === 'empresas' ? TIPOS_EMPRESAS : TIPOS_PERSONAS;
   const primeraLinea = new Map<string, number>();
+  let incluidos = 0;
   return texto.replace(/^﻿/, '').split('\n').map((bruto, indice) => {
     const valor = bruto.replace(/["']/g, '').trim().toUpperCase();
     if (!valor || ENCABEZADOS.test(valor)) return { texto: bruto, estado: 'ignorado' };
@@ -66,6 +78,9 @@ export function revisarLineas(texto: string, tipo: TipoLista): LineaRevisada[] {
     const previa = primeraLinea.get(valor);
     if (previa !== undefined) return { texto: bruto, estado: 'repetido', repetidoDe: previa + 1 };
     primeraLinea.set(valor, indice);
+    // Del documento válido número LIMITE_DOCUMENTOS + 1 en adelante queda para la carga siguiente
+    if (incluidos >= LIMITE_DOCUMENTOS) return { texto: bruto, estado: 'excede' };
+    incluidos++;
     return { texto: bruto, estado: 'valido' };
   });
 }

@@ -34,10 +34,16 @@ function Paso({ numero, titulo, descripcion, icono: Icono, children, hecho, acti
   );
 }
 
+// Resultado_Masivo_20261105.xlsx → Resultado_Masivo_20261105_carga2de4.xlsx
+function nombreDeCarga(nombre: string, carga: number, total: number) {
+  const sufijo = `_carga${carga}de${total}`;
+  return /\.xlsx$/i.test(nombre) ? nombre.replace(/\.xlsx$/i, `${sufijo}.xlsx`) : `${nombre}${sufijo}.xlsx`;
+}
+
 export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
-  const { usuario, actualizarSaldo } = useSesion();
+  const { usuario, saldo, actualizarSaldo } = useSesion();
   const { estado, actualizar } = useEstadoCarga(tipo);
-  const { secciones, fuente, texto, nombreArchivo, fase, error } = estado;
+  const { secciones, fuente, texto, nombreArchivo, fase, error, serieTotal } = estado;
   const SECCIONES = seccionesDe(tipo);
   const setSecciones = (valor: string[]) => actualizar({ secciones: valor });
   const setFuente = (valor: Fuente) => actualizar({ fuente: valor });
@@ -47,17 +53,34 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const setError = (valor: string) => actualizar({ error: valor });
   const [historial, setHistorial] = useState<HistorialDescarga[] | null>(null);
   const [cargandoHistorial, setCargandoHistorial] = useState(true);
+  // Bloques ya listos de la carga en curso, para continuar si algo falla sin volver a cobrarlos
   const [progresoBloques, setProgresoBloques] = useState<{ clave: string; archivos: Archivo[] } | null>(null);
 
   const etiqueta = tipo === 'empresas' ? 'RUC' : 'documentos';
   const analisis = useMemo(() => analizar(texto, tipo), [texto, tipo]);
-  // Documentos que no irán al Excel (formato no válido o repetidos); se marcan en rojo en la lista
+  // No válidos o repetidos (rojo) se omiten solos; los que pasan de 5000 (ámbar) quedan para la carga siguiente
   const lineas = useMemo(() => revisarLineas(texto, tipo), [texto, tipo]);
-  const excluidos = analisis.invalidos.length + analisis.duplicados;
+  const noValidos = analisis.invalidos.length + analisis.duplicados;
+  const excedentes = analisis.excedentes.length;
+  const excluidos = noValidos + excedentes;
   const fondoListaRef = useRef<HTMLDivElement>(null);
-  const quitarNoIncluidos = () => {
-    setTexto(lineas.filter((l) => l.estado === 'valido').map((l) => l.texto.trim()).join('\n'));
+
+  // Contador de cargas para listas de más de 5000: "Carga 2 de 4 · faltan 6.000"
+  const restantes = analisis.validos.length + excedentes;
+  const totalCargas = serieTotal ? Math.ceil(serieTotal / LIMITE_DOCUMENTOS) : Math.ceil(restantes / LIMITE_DOCUMENTOS);
+  const cargaActual = serieTotal ? totalCargas - Math.ceil(restantes / LIMITE_DOCUMENTOS) + 1 : 1;
+  const enSerie = totalCargas > 1;
+
+  // Editar la lista a mano empieza una lista nueva (se reinicia el contador de cargas)
+  const cambiarTexto = (valor: string) => actualizar({ texto: valor, nombreArchivo: '', serieTotal: null });
+  // Opcional: los no válidos ya se omiten solos; esto solo limpia la lista a la vista
+  const quitarNoValidos = () => {
+    setTexto(lineas.filter((l) => l.estado === 'valido' || l.estado === 'excede').map((l) => l.texto.trim()).join('\n'));
     setNombreArchivo('');
+  };
+  // Al terminar una carga: deja en la lista solo los pendientes, lista para la siguiente
+  const cargarPendientes = () => {
+    actualizar({ texto: analisis.excedentes.join('\n'), nombreArchivo: '', fase: { tipo: 'lista' }, error: '' });
   };
   const ocupado = cargaOcupada(fase);
 
@@ -83,22 +106,32 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
     if (!archivo) return;
     if (!/\.(txt|csv)$/i.test(archivo.name)) { setError('Solo se aceptan archivos .txt o .csv.'); return; }
     if (archivo.size > TAMANO_MAXIMO) { setError('El archivo supera el límite de 5 MB.'); return; }
-    setNombreArchivo(archivo.name);
-    setTexto(await archivo.text());
+    const contenido = await archivo.text();
+    actualizar({ texto: contenido, nombreArchivo: archivo.name, serieTotal: null });
   }
+
+  const claveSolicitud = JSON.stringify([tipo, secciones, analisis.validos]);
+  const progresoSolicitud = progresoBloques?.clave === claveSolicitud ? progresoBloques : null;
+  // Documentos que faltan procesar (todos, o lo que quedó si se continúa una carga interrumpida)
+  const documentosPendientes = Math.max(0, analisis.validos.length - (progresoSolicitud?.archivos.length ?? 0) * TAMANO_BLOQUE_DOCUMENTOS);
+  // Solo la carga de personas cobra (1 token por documento); la de empresas hoy no cobra
+  const cobraTokens = tipo === 'personas' && !saldo?.ilimitado;
+  const faltanTokens = Boolean(cobraTokens && saldo && saldo.saldo < documentosPendientes);
 
   const problema = !secciones.length ? 'Elige al menos una sección.'
     : !analisis.validos.length ? `Agrega al menos un ${tipo === 'empresas' ? 'RUC' : 'documento'} válido.`
-      : analisis.validos.length > LIMITE_DOCUMENTOS ? `El máximo es ${fNumero(LIMITE_DOCUMENTOS)} por carga.` : null;
-  const claveSolicitud = JSON.stringify([tipo, secciones, analisis.validos]);
-  const progresoSolicitud = progresoBloques?.clave === claveSolicitud ? progresoBloques : null;
+      : faltanTokens ? `Necesitas ${fNumero(documentosPendientes)} tokens y tienes ${fNumero(saldo!.saldo)}. Pide más a un Administrador General.` : null;
 
+  // Una carga de hasta 5000 documentos. Si la lista es más larga, al terminar quedan los pendientes
+  // y el usuario sigue con "Cargar los pendientes" (un clic, sin volver al Excel).
   async function procesar() {
     if (problema || !usuario) return;
     setError('');
+    // Primera carga de una lista grande: se recuerda el total para el contador "Carga 1 de 4"
+    if (excedentes > 0 && serieTotal === null) actualizar({ serieTotal: restantes });
     setFase({ tipo: 'subiendo', porcentaje: 0 });
     try {
-      let resultado;
+      let resultado: Archivo;
       if (tipo === 'personas') {
         const totalBloques = Math.ceil(analisis.validos.length / TAMANO_BLOQUE_DOCUMENTOS);
         const archivos = progresoSolicitud ? [...progresoSolicitud.archivos] : [];
@@ -135,17 +168,19 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           setFase(porcentaje >= 100 ? { tipo: 'procesando' } : { tipo: 'subiendo', porcentaje }));
       }
 
+      // Lista grande: el Excel de cada carga lleva su número (Resultado_Masivo_..._carga2de4.xlsx)
+      if (enSerie) resultado = { ...resultado, nombre: nombreDeCarga(resultado.nombre, cargaActual, totalCargas) };
       guardarArchivo(resultado);
       setFase({ tipo: 'listo', nombre: resultado.nombre });
       setProgresoBloques(null);
       await servicioMasiva.guardarEnHistorial(resultado, secciones, analisis.validos.length).catch(() => null);
-      setCargandoHistorial(true);
-      cargarHistorial();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo procesar la carga.');
       setFase({ tipo: 'lista' });
     } finally {
       actualizarSaldo();
+      setCargandoHistorial(true);
+      cargarHistorial();
     }
   }
 
@@ -205,7 +240,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           <>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold text-texto">Lista de {etiqueta}</p>
-              <span className="text-xs font-semibold text-gris text-red-800 ">Un documento por línea · máximo {fNumero(LIMITE_DOCUMENTOS)}</span>
+              <span className="text-xs font-semibold text-gris">Un documento por línea · {fNumero(LIMITE_DOCUMENTOS)} por carga; si pegas más, el resto queda para la siguiente</span>
             </div>
             <div className="overflow-hidden rounded-xl border-2 border-borde bg-white transition-colors focus-within:border-azul focus-within:ring-2 focus-within:ring-azul/15">
             {/* El texto del cuadro es transparente y, detrás, la misma lista se dibuja con las líneas
@@ -213,17 +248,25 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
             <div className="relative">
               <div ref={fondoListaRef} aria-hidden className="numeros pointer-events-none absolute inset-0 overflow-hidden whitespace-pre p-4 text-sm leading-6 text-texto">
                 {texto && lineas.map((linea, i) => (
-                  <div key={i} className={clsx(linea.estado === 'invalido' || linea.estado === 'repetido' ? 'rounded bg-peligro-10 text-peligro' : '')}>
+                  <div key={i} className={clsx(
+                    (linea.estado === 'invalido' || linea.estado === 'repetido') && 'rounded bg-peligro-10 text-peligro',
+                    linea.estado === 'excede' && 'rounded bg-ambar-10 text-ambar',
+                  )}>
                     <span className={clsx((linea.estado === 'invalido' || linea.estado === 'repetido') && 'line-through decoration-peligro/60')}>{linea.texto || ' '}</span>
                     {(linea.estado === 'invalido' || linea.estado === 'repetido') && (
                       <span className="ml-3 text-[11px] font-semibold">
                         ✗ No se incluirá: {linea.estado === 'invalido' ? 'formato no válido' : `repetido (línea ${linea.repetidoDe})`}
                       </span>
                     )}
+                    {linea.estado === 'excede' && (
+                      <span className="ml-3 text-[11px] font-semibold">
+                        ⏸ Pendiente: va en la carga siguiente
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
-              <textarea value={texto} onChange={(e) => { setTexto(e.target.value.replace(/[\s,;|/\\]+/g, '\n')); setNombreArchivo(''); }} rows={8} disabled={ocupado}
+              <textarea value={texto} onChange={(e) => cambiarTexto(e.target.value.replace(/[\s,;|/\\]+/g, '\n'))} rows={8} disabled={ocupado}
                 onScroll={(e) => { if (fondoListaRef.current) { fondoListaRef.current.scrollTop = e.currentTarget.scrollTop; fondoListaRef.current.scrollLeft = e.currentTarget.scrollLeft; } }}
                 placeholder={tipo === 'empresas' ? 'Pega un RUC por línea\n20100000001\n20100000002' : 'Pega un documento por línea\n12345678\n87654321'}
                 aria-label={`Lista de ${etiqueta} para procesar`}
@@ -231,14 +274,24 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
                 spellCheck={false}
                 className="focus-control numeros relative min-h-48 w-full resize-none whitespace-pre border-0 bg-transparent p-4 text-sm leading-6 text-transparent caret-texto placeholder:text-gris/70 selection:bg-azul/25 focus:outline-none focus:ring-0" />
             </div>
-            <div id="resumen-lista-masiva" className={clsx('flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-[11px]', excluidos > 0 ? 'border-peligro/20 bg-peligro-10 text-peligro' : 'border-borde bg-fondo/40 text-gris')}>
-              <span>{excluidos > 0
-                ? `${fNumero(excluidos)} no se incluirán (marcados en rojo). El Excel se generará solo con los válidos.`
-                : 'Un documento por línea. Se omiten encabezados.'}</span>
-              <span className="flex shrink-0 items-center gap-3">
-                {excluidos > 0 && <button type="button" onClick={quitarNoIncluidos} className="font-semibold underline underline-offset-2 hover:no-underline">Quitar no válidos</button>}
-                <span className="numeros">{fNumero(analisis.validos.length)} se incluirán</span>
-              </span>
+            <div id="resumen-lista-masiva" className="border-t border-borde text-[11px]">
+              {noValidos > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-peligro-10 px-4 py-2 text-peligro">
+                  <span>{fNumero(noValidos)} no válidos o repetidos (en rojo) se omiten solos; no tienes que quitarlos.</span>
+                  <button type="button" onClick={quitarNoValidos} className="font-semibold underline underline-offset-2 hover:no-underline">Limpiar la lista</button>
+                </div>
+              )}
+              {excedentes > 0 && (
+                <div className="bg-ambar-10 px-4 py-2 text-ambar">
+                  Esta carga procesa los primeros {fNumero(LIMITE_DOCUMENTOS)}. {fNumero(excedentes)} quedan pendientes (en ámbar); al terminar los cargas con un clic, sin volver a copiarlos.
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-fondo/40 px-4 py-2 text-gris">
+                <span>{excluidos === 0 ? 'Un documento por línea. Se omiten encabezados.' : ''}</span>
+                <span className="numeros font-semibold text-texto">
+                  {fNumero(analisis.validos.length)} se incluirán en esta carga
+                </span>
+              </div>
             </div>
             </div>
           </>
@@ -255,6 +308,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           <div className="numeros mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-[#f5f7fb] p-3 text-sm">
             {analisis.porTipo.map((t) => <Chip key={t.nombre} tono="verde">{fNumero(t.cantidad)} {t.nombre}</Chip>)}
             {analisis.duplicados > 0 && <Chip tono="peligro">{fNumero(analisis.duplicados)} repetidos (no se incluirán)</Chip>}
+            {excedentes > 0 && <Chip tono="ambar">{fNumero(excedentes)} pendientes para la carga siguiente</Chip>}
             {analisis.invalidos.length > 0 && <Chip tono="peligro">{fNumero(analisis.invalidos.length)} no válidos (no se incluirán): {analisis.invalidos.slice(0, 3).join(', ')}{analisis.invalidos.length > 3 ? '…' : ''}</Chip>}
           </div>
         )}
@@ -291,7 +345,24 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
 
       <Paso numero={3} titulo="Procesa y descarga el Excel" descripcion="Inicia la consulta para generar tu archivo con los resultados." icono={FileSpreadsheet} hecho={fase.tipo === 'listo'} activo={pasoActual === 3}>
         {error && <div className="mb-4"><Aviso tono="error" alCerrar={() => setError('')}>{error}</Aviso></div>}
+        {/* Lista de más de 5000: en qué carga va y cuánto falta */}
+        {enSerie && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-azul-25 bg-azul-10/60 px-4 py-3 text-sm text-azul">
+            <span className="rounded-md bg-white px-2.5 py-1 text-xs font-bold shadow-sm">Carga {cargaActual} de {totalCargas}</span>
+            <span className="numeros">
+              {fase.tipo === 'listo'
+                ? excedentes > 0 ? `Lista. Faltan ${fNumero(excedentes)} documentos.` : 'Terminaste todas las cargas de tu lista.'
+                : `Faltan ${fNumero(restantes)} documentos, contando esta carga.`}
+            </span>
+          </div>
+        )}
         {fase.tipo === 'listo' && <div className="mb-4"><Aviso tono="exito">Listo: se descargó <strong>{fase.nombre}</strong>. También quedó en tu historial.</Aviso></div>}
+        {fase.tipo === 'listo' && excedentes > 0 && (
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-ambar/30 bg-ambar-10 p-4 text-sm text-ambar sm:flex-row sm:items-center sm:justify-between">
+            <p>Quedan <strong className="numeros">{fNumero(excedentes)}</strong> documentos. Un clic y quedan listos para la carga {cargaActual + 1} de {totalCargas}.</p>
+            <Boton type="button" onClick={cargarPendientes} className="shrink-0">Cargar los pendientes</Boton>
+          </div>
+        )}
         <div className="relative overflow-hidden rounded-2xl border border-azul-25 bg-gradient-to-br from-[#f7f9fd] via-white to-[#edf2fa] p-4 sm:p-6">
           <div aria-hidden className="pointer-events-none absolute -right-12 -top-16 size-48 rounded-full bg-azul-10/70 blur-2xl" />
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -303,12 +374,15 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
               <div>
                 <p className="text-base font-bold tracking-tight text-texto">Tu archivo está casi listo</p>
                 <p className="mt-1 max-w-xl text-sm leading-5 text-gris">{analisis.validos.length ? `${fNumero(analisis.validos.length)} ${etiqueta} y ${secciones.length} secciones seleccionadas.` : 'Confirma tu lista y las secciones para generar el Excel.'}</p>
-                {excluidos > 0 && analisis.validos.length > 0 && <p className="mt-1 text-xs font-medium text-peligro">{fNumero(excluidos)} no se incluirán por ser no válidos o repetidos.</p>}
+                {noValidos > 0 && analisis.validos.length > 0 && <p className="mt-1 text-xs font-medium text-peligro">{fNumero(noValidos)} se omiten por ser no válidos o repetidos.</p>}
+                {excedentes > 0 && fase.tipo !== 'listo' && <p className="mt-1 text-xs font-medium text-ambar">{fNumero(excedentes)} quedan pendientes para la carga siguiente.</p>}
                 {problema && !ocupado && <p className="mt-2 text-xs font-medium text-ambar">{problema}</p>}
               </div>
             </div>
-            <Boton onClick={procesar} disabled={Boolean(problema) || ocupado} cargando={ocupado} className="group h-12 w-full shrink-0 px-6 shadow-lg shadow-azul/20 transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto">
-              {!ocupado && <span className="grid size-7 place-items-center rounded-lg bg-white/15 transition-transform group-hover:scale-110"><Play className="size-3.5 fill-current" /></span>}Generar Excel <span className="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-bold">{analisis.validos.length ? fNumero(analisis.validos.length) : '—'}</span>
+            <Boton onClick={() => void procesar()} disabled={Boolean(problema) || ocupado} cargando={ocupado} className="group h-12 w-full shrink-0 px-6 shadow-lg shadow-azul/20 transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto">
+              {!ocupado && <span className="grid size-7 place-items-center rounded-lg bg-white/15 transition-transform group-hover:scale-110"><Play className="size-3.5 fill-current" /></span>}
+              {progresoSolicitud ? 'Continuar' : 'Generar Excel'}
+              <span className="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-bold">{analisis.validos.length ? fNumero(analisis.validos.length) : '—'}</span>
             </Boton>
           </div>
           {ocupado && (
@@ -334,7 +408,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
           )}
           {progresoSolicitud && progresoSolicitud.archivos.length > 0 && !ocupado && (
             <p className="mt-3 text-xs text-ambar">
-              Se conservaron {progresoSolicitud.archivos.length} bloques completados. Al continuar se procesarán los pendientes.
+              Se conservaron {progresoSolicitud.archivos.length} bloques completados. Al continuar se procesa solo lo que falta, sin volver a cobrar lo ya hecho.
             </p>
           )}
         </div>
