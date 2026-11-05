@@ -278,8 +278,8 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
                   ? `Enviando bloque ${fase.bloqueActual ?? 1} de ${fase.totalBloques ?? 1}… ${fase.porcentaje}%`
                   : fase.tipo === 'procesando'
                     ? fase.bloqueActual
-                      ? `Procesando bloque ${fase.bloqueActual} de ${fase.totalBloques}…`
-                      : 'Consultando en el servidor. Puede tardar unos minutos.'
+                      ? `Procesando bloque ${fase.bloqueActual} de ${fase.totalBloques}… (si hay otras cargas en curso, puede esperar su turno)`
+                      : 'Consultando en el servidor. Si hay otras cargas en curso, puede esperar su turno.'
                     : 'Consolidando todos los bloques en un solo Excel…'}
               </p>
               <div className="h-2 overflow-hidden rounded-full bg-azul-10">

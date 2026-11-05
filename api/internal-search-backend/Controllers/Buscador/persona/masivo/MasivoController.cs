@@ -5,6 +5,7 @@ using internal_search_backend.Business.Services.Tokens;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 
@@ -63,6 +64,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
 
 
         [HttpPost("masivo/exportar")]
+        [EnableRateLimiting("masivo")]
         [Consumes("multipart/form-data")]
         [RequestSizeLimit(5_000_000)]
         public async Task<IActionResult> ExportarMasivo(
@@ -108,6 +110,10 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
                 var costo = DocumentoFileParser.Parse(new MemoryStream(contenido)).validos.Count;
                 if (costo == 0)
                     return BadRequest("El archivo no contiene documentos válidos.");
+
+                // Se valida antes de cobrar para no descontar y devolver tokens sin necesidad.
+                if (costo > BuscadorMasivoService.MaxDocumentos)
+                    return BadRequest($"El máximo por carga es {BuscadorMasivoService.MaxDocumentos} documentos.");
 
                 var resultado = await _tokens.EjecutarAsync(
                     this.Contexto(), costo, "BUSQUEDA_MASIVA",

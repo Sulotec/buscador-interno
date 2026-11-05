@@ -8,12 +8,14 @@ using internal_search_backend.Business.Services.Tokens;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace internal_search_backend.Controllers.Buscador.persona.individual
 {
     [ApiController]
     [Route("api/buscador")]
     [Authorize]
+    [EnableRateLimiting("consultas")]
     public class BuscadorController : ControllerBase
     {
         private const int CostoConsulta = 1;

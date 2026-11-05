@@ -10,7 +10,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
     public class BuscadorMasivoService : IMasivoExcelService
     {
-        private const int MaxDocumentos = 5000;
+        public const int MaxDocumentos = 5000;
         private readonly IBuscadorMasivoRepository _repo;               // ✅
 
         public BuscadorMasivoService(IBuscadorMasivoRepository repo)    // ✅

@@ -4,12 +4,14 @@ using internal_search_backend.Business.Services.Tokens;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace internal_search_backend.Controllers.Buscador.empresa.individual
 {
     [Authorize]
+    [EnableRateLimiting("consultas")]
     [Route("api/empresa")]
     [ApiController]
     public class IndividualController : ControllerBase

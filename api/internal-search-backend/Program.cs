@@ -232,6 +232,15 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Usuario autenticado (o IP si no lo hay) para que el límite sea por persona y no por oficina.
+    static string ClaveUsuario(HttpContext ctx) =>
+        ctx.User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? $"ip:{ctx.Connection.RemoteIpAddress?.ToString() ?? "desconocida"}";
+
+    static bool EsCargaMasiva(HttpContext ctx) =>
+        ctx.Request.Path.Value?.EndsWith("/masivo/exportar", StringComparison.OrdinalIgnoreCase) == true;
+
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
@@ -240,6 +249,55 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1)
             }));
+
+    // Consultas individuales: hasta 60 por minuto por usuario. Un uso normal no llega; corta scripts o bucles.
+    options.AddPolicy("consultas", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ClaveUsuario(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // Cargas masivas por usuario: una a la vez. Si ya tiene una en proceso, la nueva se rechaza.
+    options.AddPolicy("masivo", httpContext =>
+        RateLimitPartition.GetConcurrencyLimiter(
+            ClaveUsuario(httpContext),
+            _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 1,
+                QueueLimit = 0
+            }));
+
+    // Cargas masivas en todo el servidor (personas + empresas): 3 a la vez y hasta 10 esperando turno.
+    // Se suma a la política "masivo" de arriba; el resto de peticiones no tiene límite global.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        EsCargaMasiva(httpContext)
+            ? RateLimitPartition.GetConcurrencyLimiter("masivo-servidor", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 3,
+                QueueLimit = 10,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            })
+            : RateLimitPartition.GetNoLimiter("sin-limite"));
+
+    // Mensaje en el formato que lee la web ({ message }).
+    options.OnRejected = async (contexto, ct) =>
+    {
+        var http = contexto.HttpContext;
+        var mensaje = EsCargaMasiva(http)
+            ? "Ya tienes una carga masiva en proceso o hay muchas cargas en cola. Intenta de nuevo en unos minutos."
+            : http.Request.Path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+                ? "Demasiados intentos. Espera un momento y vuelve a intentar."
+                : "Hiciste muchas consultas en poco tiempo. Espera un momento antes de volver a consultar.";
+
+        if (contexto.Lease.TryGetMetadata(MetadataName.RetryAfter, out var reintentar))
+            http.Response.Headers.RetryAfter = ((int)Math.Ceiling(reintentar.TotalSeconds)).ToString();
+
+        await http.Response.WriteAsJsonAsync(new { message = mensaje }, ct);
+    };
 });
 
 builder.Services.AddControllers(options =>
@@ -334,11 +392,12 @@ app.UseForwardedHeaders(cabecerasReenviadas);
 
 app.UseCors("Frontend");
 
-app.UseRateLimiter();
-
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+// Después de la autenticación para que los límites por usuario sepan quién hace la petición.
+app.UseRateLimiter();
 
 app.MapControllers();
 

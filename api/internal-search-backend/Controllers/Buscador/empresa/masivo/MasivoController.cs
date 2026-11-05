@@ -1,7 +1,9 @@
 ﻿using internal_search.Domain.DTOs.buscador.empresa.masivo;
 using internal_search_backend.Business.Services.Buscador.empresa.masivo;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System;
 using System.IO;
 using System.Linq;
@@ -12,6 +14,7 @@ namespace internal_search_backend.Controllers.Buscador.empresa.masivo
 {
     [Route("api/empresa")]
     [ApiController]
+    [Authorize]
     public class MasivoController : ControllerBase
     {
         private readonly IBuscadorEmpresaMasivoService _masivoService;
@@ -26,6 +29,7 @@ namespace internal_search_backend.Controllers.Buscador.empresa.masivo
         }
 
         [HttpPost("masivo/exportar")]
+        [EnableRateLimiting("masivo")]
         [Consumes("multipart/form-data")]
         [RequestSizeLimit(5_000_000)]
         public async Task<IActionResult> ExportarMasivo(
