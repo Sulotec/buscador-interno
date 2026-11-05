@@ -1,10 +1,11 @@
-﻿using internal_search.Domain.DTOs.buscador.empresa.individual;
+using internal_search.Domain.DTOs.buscador.empresa.individual;
 using internal_search_backend.Business.Services.Buscador.empresa.individual;
 using internal_search_backend.Business.Services.Tokens;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using internal_search_backend.Redis;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -20,11 +21,13 @@ namespace internal_search_backend.Controllers.Buscador.empresa.individual
 
         private readonly IIndividualService _buscadorEmpresaService;
         private readonly ITokenService _tokens;
+        private readonly ICacheConsultas _cache;
 
-        public IndividualController(IIndividualService buscadorEmpresaService, ITokenService tokens)
+        public IndividualController(IIndividualService buscadorEmpresaService, ITokenService tokens, ICacheConsultas cache)
         {
             _buscadorEmpresaService = buscadorEmpresaService;
             _tokens = tokens;
+            _cache = cache;
         }
 
         /// <summary>
@@ -43,7 +46,8 @@ namespace internal_search_backend.Controllers.Buscador.empresa.individual
                 // Llamada al servicio de aplicación
                 var resultado = await _tokens.EjecutarAsync(
                     this.Contexto(), CostoConsulta, "BUSQUEDA_EMPRESA_RUC", ruc,
-                    () => _buscadorEmpresaService.BuscarEmpresaPorRucAsync(ruc));
+                    () => _cache.ObtenerOCrearAsync($"empresa:{ruc.Trim()}",
+                        () => _buscadorEmpresaService.BuscarEmpresaPorRucAsync(ruc)));
 
                 return Ok(resultado);
             }

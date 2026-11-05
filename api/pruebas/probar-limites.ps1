@@ -1,14 +1,16 @@
 ﻿# Prueba local de los límites de peticiones de la API.
 # Uso (en tu propia terminal, para que la clave no quede en ningún historial compartido):
 #   powershell -ExecutionPolicy Bypass -File api\pruebas\probar-limites.ps1 -Usuario <usuario>
-#   (pide la clave de forma oculta)
+#   (pide la clave de forma oculta). Para probar también el caché de Redis agrega:  -DniCache 12345678
 #
 # Prueba 1 y 2 NO gastan tokens. La prueba 3 sube dos cargas masivas de 1 documento: la que se procesa
 # cuesta 1 token (0 si usas una cuenta ADMIN GENERAL).
 
 param(
     [Parameter(Mandatory = $true)][string]$Usuario,
-    [string]$Api = 'http://127.0.0.1:8080'
+    [string]$Api = 'http://127.0.0.1:8080',
+    # DNI real para probar el caché (prueba 4). Si no se indica, la prueba 4 se omite.
+    [string]$DniCache
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,3 +77,18 @@ if ($estados -contains '429') { Write-Host '   OK: la segunda carga simultánea 
 else { Write-Host '   Ninguna fue rechazada: la primera terminó antes de que llegara la segunda. Repite la prueba o usa un archivo más grande.' -ForegroundColor Yellow }
 
 Remove-Item -Recurse -Force $tmp
+
+# --- Prueba 4: caché de consultas en Redis (opcional, cuesta 2 tokens) ---
+if ($DniCache) {
+    Write-Host "`nPrueba 4: mismo DNI dos veces (esperado: la segunda mucho más rápida)"
+    Write-Host '   Espera 60 s para que se libere el límite por minuto de la prueba 1...'
+    Start-Sleep 61
+    $cuerpo = @{ tipoDocumento = 'DNI'; documento = $DniCache } | ConvertTo-Json
+    $tiempos = 1..2 | ForEach-Object {
+        (Measure-Command { Invoke-RestMethod -Method Post "$Api/api/buscador/buscar" -Headers $cabeceras `
+            -ContentType 'application/json' -Body $cuerpo | Out-Null }).TotalMilliseconds
+    }
+    "   Primera (base de datos): $([int]$tiempos[0]) ms   Segunda (caché): $([int]$tiempos[1]) ms"
+    if ($tiempos[1] -lt $tiempos[0] / 2) { Write-Host '   OK: la segunda salió del caché' -ForegroundColor Green }
+    else { Write-Host '   Sin diferencia clara: el DNI ya estaba en caché o Redis no está activo' -ForegroundColor Yellow }
+}

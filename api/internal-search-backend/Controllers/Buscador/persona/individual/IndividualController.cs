@@ -9,6 +9,7 @@ using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using internal_search_backend.Redis;
 
 namespace internal_search_backend.Controllers.Buscador.persona.individual
 {
@@ -26,6 +27,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
         private readonly ITokenService _tokens;
         private readonly IReniecService _reniec;
         private readonly IAuditoriaService _auditoria;
+        private readonly ICacheConsultas _cache;
 
         public BuscadorController(
             IIndividualService buscadorService,
@@ -33,7 +35,8 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
             IFallecidosService fallecidosService,
             ITokenService tokens,
             IReniecService reniec,
-            IAuditoriaService auditoria)
+            IAuditoriaService auditoria,
+            ICacheConsultas cache)
         {
             _buscadorService = buscadorService;
             _personaPdfService = personaPdfService;
@@ -41,6 +44,7 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
             _tokens = tokens;
             _reniec = reniec;
             _auditoria = auditoria;
+            _cache = cache;
         }
 
         /// <summary>
@@ -99,7 +103,9 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
             var resultado = await _tokens.EjecutarAsync(
                 this.Contexto(), CostoConsulta, "BUSQUEDA_PERSONA",
                 $"{entrada.TipoDocumento} {entrada.Documento}",
-                () => _buscadorService.BuscarAsync(entrada, ct));
+                () => _cache.ObtenerOCrearAsync(
+                    $"persona:{entrada.TipoDocumento.Trim().ToUpperInvariant()}:{entrada.Documento.Trim().ToUpperInvariant()}",
+                    () => _buscadorService.BuscarAsync(entrada, ct), ct));
             return Ok(resultado);
         }
         
@@ -112,7 +118,9 @@ namespace internal_search_backend.Controllers.Buscador.persona.individual
             var resultado = await _tokens.EjecutarAsync(
                 this.Contexto(), CostoConsulta, "BUSQUEDA_TELEFONO",
                 entrada.Telefono,
-                () => _buscadorService.BuscarPorTelefonoAsync(entrada.Telefono, ct));
+                () => _cache.ObtenerOCrearAsync(
+                    $"telefono:{entrada.Telefono.Trim()}",
+                    () => _buscadorService.BuscarPorTelefonoAsync(entrada.Telefono, ct), ct));
             return Ok(resultado);
         }
 

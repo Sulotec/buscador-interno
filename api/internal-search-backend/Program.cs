@@ -39,6 +39,9 @@ using internal_search_backend.Infraestructure.Repositories.Reniec;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using internal_search_backend.Redis;
+using RedisRateLimiting;
+using RedisRateLimiting.AspNetCore;
 using internal_search.Domain.Configuration;
 using internal_search.Domain.Interfaces.Notificaciones;
 using internal_search_backend.Infraestructure.Notificaciones;
@@ -229,6 +232,14 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(ctx => ctx.User.EsAdminGeneral()));
 });
 
+// --- Redis (opcional), límites y caché de consultas ---
+// Con Redis configurado, los límites se comparten entre todas las instancias de la API y las consultas
+// individuales se guardan en caché. Sin Redis, o si se cae, todo sigue funcionando con límites en memoria.
+var redis = builder.AgregarRedis();
+var limites = builder.Configuration.GetSection("Limites").Get<LimitesOptions>() ?? new LimitesOptions();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Cache").Get<CacheOptions>() ?? new CacheOptions());
+builder.Services.AddSingleton<ICacheConsultas, CacheConsultas>();
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -241,46 +252,57 @@ builder.Services.AddRateLimiter(options =>
     static bool EsCargaMasiva(HttpContext ctx) =>
         ctx.Request.Path.Value?.EndsWith("/masivo/exportar", StringComparison.OrdinalIgnoreCase) == true;
 
+    // Redis si está conectado; si no, en memoria. Las claves llevan prefijo distinto para que
+    // el limitador guardado para cada una sea siempre del mismo tipo.
+    bool UsarRedis() => redis is { IsConnected: true };
+
+    RateLimitPartition<string> VentanaFija(string clave, int permitidos, TimeSpan ventana) =>
+        UsarRedis()
+            ? RedisRateLimitPartition.GetFixedWindowRateLimiter($"r:{clave}", _ => new RedisFixedWindowRateLimiterOptions
+            {
+                ConnectionMultiplexerFactory = () => redis!,
+                PermitLimit = permitidos,
+                Window = ventana
+            })
+            : RateLimitPartition.GetFixedWindowLimiter($"m:{clave}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitidos,
+                Window = ventana,
+                QueueLimit = 0
+            });
+
+    RateLimitPartition<string> Simultaneos(string clave, int permitidos, int enFila) =>
+        UsarRedis()
+            ? RedisRateLimitPartition.GetConcurrencyRateLimiter($"r:{clave}", _ => new RedisConcurrencyRateLimiterOptions
+            {
+                ConnectionMultiplexerFactory = () => redis!,
+                PermitLimit = permitidos,
+                QueueLimit = enFila
+            })
+            : RateLimitPartition.GetConcurrencyLimiter($"m:{clave}", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = permitidos,
+                QueueLimit = enFila,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            });
+
+    // Login y recuperación de clave: 10 intentos por minuto por IP.
     options.AddPolicy("auth", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            httpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 10,
-                Window = TimeSpan.FromMinutes(1)
-            }));
+        VentanaFija($"auth:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida"}", 10, TimeSpan.FromMinutes(1)));
 
-    // Consultas individuales: hasta 60 por minuto por usuario. Un uso normal no llega; corta scripts o bucles.
+    // Consultas individuales por usuario y por minuto. Un uso normal no llega; corta scripts o bucles.
     options.AddPolicy("consultas", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            ClaveUsuario(httpContext),
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 60,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
-            }));
+        VentanaFija($"consultas:{ClaveUsuario(httpContext)}", limites.ConsultasPorMinuto, TimeSpan.FromMinutes(1)));
 
-    // Cargas masivas por usuario: una a la vez. Si ya tiene una en proceso, la nueva se rechaza.
+    // Cargas masivas por usuario: si ya tiene las permitidas en proceso, la nueva se rechaza.
     options.AddPolicy("masivo", httpContext =>
-        RateLimitPartition.GetConcurrencyLimiter(
-            ClaveUsuario(httpContext),
-            _ => new ConcurrencyLimiterOptions
-            {
-                PermitLimit = 1,
-                QueueLimit = 0
-            }));
+        Simultaneos($"masivo-usuario:{ClaveUsuario(httpContext)}", limites.MasivoPorUsuario, 0));
 
-    // Cargas masivas en todo el servidor (personas + empresas): 3 a la vez y hasta 10 esperando turno.
+    // Cargas masivas en todo el sistema (personas + empresas): N a la vez y el resto esperando turno.
     // Se suma a la política "masivo" de arriba; el resto de peticiones no tiene límite global.
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
         EsCargaMasiva(httpContext)
-            ? RateLimitPartition.GetConcurrencyLimiter("masivo-servidor", _ => new ConcurrencyLimiterOptions
-            {
-                PermitLimit = 3,
-                QueueLimit = 10,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            })
+            ? Simultaneos("masivo-servidor", limites.MasivoSimultaneos, limites.MasivoEnFila)
             : RateLimitPartition.GetNoLimiter("sin-limite"));
 
     // Mensaje en el formato que lee la web ({ message }).
@@ -289,7 +311,7 @@ builder.Services.AddRateLimiter(options =>
         var http = contexto.HttpContext;
         var mensaje = EsCargaMasiva(http)
             ? "Ya tienes una carga masiva en proceso o hay muchas cargas en cola. Intenta de nuevo en unos minutos."
-            : http.Request.Path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+            : http.Request.Path.StartsWithSegments("/system/auth", StringComparison.OrdinalIgnoreCase)
                 ? "Demasiados intentos. Espera un momento y vuelve a intentar."
                 : "Hiciste muchas consultas en poco tiempo. Espera un momento antes de volver a consultar.";
 
