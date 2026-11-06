@@ -1,5 +1,6 @@
 ﻿using internal_search.Domain.DTOs.buscador.empresa.masivo;
 using internal_search_backend.Business.Services.Buscador.empresa.masivo;
+using internal_search_backend.Business.Services.ListaNegra;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -19,11 +20,14 @@ namespace internal_search_backend.Controllers.Buscador.empresa.masivo
     {
         private readonly IBuscadorEmpresaMasivoService _masivoService;
         private readonly IBuscadorEmpresaMasivoExcelService _excelService; // <--- Cambiado al de empresa
+        private readonly IListaNegraService _listaNegra;
 
         public MasivoController(
             IBuscadorEmpresaMasivoService masivoService,
-            IBuscadorEmpresaMasivoExcelService excelService) // <--- Cambiado al de empresa
+            IBuscadorEmpresaMasivoExcelService excelService, // <--- Cambiado al de empresa
+            IListaNegraService listaNegra)
         {
+            _listaNegra = listaNegra;
             _masivoService = masivoService;
             _excelService = excelService;
         }
@@ -63,7 +67,16 @@ namespace internal_search_backend.Controllers.Buscador.empresa.masivo
 
             try
             {
-                using var stream = archivo.OpenReadStream();
+                // Lista negra: se quitan del archivo los RUC 10 cuyo DNI está bloqueado (no se consultan)
+                List<string> lineas;
+                using (var lector = new StreamReader(archivo.OpenReadStream()))
+                    lineas = (await lector.ReadToEndAsync(ct)).Split('\n').Select(l => l.Trim()).ToList();
+                var bloqueados = await _listaNegra.FiltrarBloqueadosAsync(lineas, ct);
+                var permitidas = lineas.Where(l => !bloqueados.Contains(l)).ToList();
+                if (bloqueados.Count > 0 && permitidas.All(string.IsNullOrWhiteSpace))
+                    return BadRequest("Todos los RUC del archivo pertenecen a DNI de la lista negra y no se pueden consultar.");
+
+                using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Join('\n', permitidas)));
 
                 var resultado = await _masivoService.BuscarMasivoAsync(
                     stream,

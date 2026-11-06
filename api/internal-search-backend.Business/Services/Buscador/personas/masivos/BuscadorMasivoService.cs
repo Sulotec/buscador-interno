@@ -20,12 +20,18 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
 
         public async Task<BuscadorMasivoResponse> BuscarMasivoAsync(
-            Stream archivo, HashSet<string> secciones, CancellationToken ct)
+            Stream archivo, HashSet<string> secciones, IReadOnlySet<string> excluidos, CancellationToken ct)
         {
-            var (validos, invalidos) = DocumentoFileParser.Parse(archivo);
+            var (todos, invalidos) = DocumentoFileParser.Parse(archivo);
+
+            // Lista negra: esos documentos no se consultan; se informan en el Excel como "No disponible"
+            var noDisponibles = todos.Where(d => excluidos.Contains(d.Trim())).ToList();
+            var validos = todos.Where(d => !excluidos.Contains(d.Trim())).ToList();
 
             if (validos.Count == 0)
-                throw new ArgumentException("El archivo no contiene documentos válidos. Se aceptan DNI, RUC, CE y pasaporte.");
+                throw new ArgumentException(noDisponibles.Count > 0
+                    ? "Todos los documentos del archivo están en la lista negra y no se pueden consultar."
+                    : "El archivo no contiene documentos válidos. Se aceptan DNI, RUC, CE y pasaporte.");
 
             if (validos.Count > MaxDocumentos)
                 throw new ArgumentException($"El máximo por carga es {MaxDocumentos} documentos.");
@@ -34,6 +40,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 
             result.TotalSolicitados = validos.Count;
             result.DocumentosInvalidos = invalidos;
+            result.DocumentosNoDisponibles = noDisponibles;
 
             // Solo cuentan las secciones consultadas: las no seleccionadas quedan vacías
             var encontrados = result.Personas.Select(x => x.Dni)

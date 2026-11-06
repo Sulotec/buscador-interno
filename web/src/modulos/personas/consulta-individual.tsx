@@ -78,6 +78,7 @@ export function ConsultaIndividual({
         <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gris">¿Qué dato deseas consultar?</p>
         </div>
+        {bloqueandoCambioModo && <p role="status" className="text-xs font-medium text-azul">{cargando ? 'La búsqueda está en curso. Espera a que termine para cambiar de pestaña.' : 'La consulta de la ficha personal está en curso. Espera a que termine para cambiar de pestaña.'}</p>}
         <Pestanas<Modo>
           valor={modo} deshabilitadas={bloqueandoCambioModo}
           alCambiar={(m) => { if (bloqueandoCambioModo) return; setModo(m); setError(''); }}
@@ -87,11 +88,8 @@ export function ConsultaIndividual({
             { id: 'nombres', texto: 'Apellidos y nombres', icono: <UserRound className="size-4" /> },
             { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
           ]}
-        />
-        {bloqueandoCambioModo && <p role="status" className="text-xs font-medium text-azul">{cargando ? 'La búsqueda está en curso. Espera a que termine para cambiar de pestaña.' : 'La consulta de RENIEC está en curso. Espera a que termine para cambiar de pestaña.'}</p>}
-      </div>
-
-      <div><Tarjeta>
+        >
+      <Tarjeta>
         <div className="mb-4 flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-azul-10 text-azul">
             {modo === 'documento' ? <IdCard className="size-5" /> : modo === 'telefono' ? <Phone className="size-5" /> : modo === 'fallecidos' ? <HeartCrack className="size-5" /> : <UserRound className="size-5" />}
@@ -286,7 +284,9 @@ export function ConsultaIndividual({
             </form>
           </div>
         )}
-      </Tarjeta></div>
+      </Tarjeta>
+        </Pestanas>
+      </div>
       </>}
     </>
   );

@@ -66,12 +66,10 @@ export default function Empresas() {
       <Encabezado titulo="Consulta de empresas" bajada="Busca por RUC o por razón social. Cada consulta queda registrada en la auditoría." />
       <div className="flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gris">¿Qué dato deseas consultar?</p>
+        {cargando && <p role="status" className="text-xs font-medium text-azul">La consulta está en curso. Espera a que termine para cambiar el tipo de búsqueda.</p>}
         <Pestanas<Modo> valor={modo} deshabilitadas={cargando}
           alCambiar={(m) => { if (cargando) return; setModo(m); setError(''); }}
-          opciones={[{ id: 'ruc', texto: 'RUC', icono: <Hash className="size-4" /> }, { id: 'razon', texto: 'Razón social', icono: <Building2 className="size-4" /> }]} />
-      </div>
-      {cargando && <p role="status" className="-mt-4 text-xs font-medium text-azul">La consulta está en curso. Espera a que termine para cambiar el tipo de búsqueda.</p>}
-
+          opciones={[{ id: 'ruc', texto: 'RUC', icono: <Hash className="size-4" /> }, { id: 'razon', texto: 'Razón social', icono: <Building2 className="size-4" /> }]}>
       <Tarjeta>
         <div className="mb-4 flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-azul-10 text-azul">
@@ -94,6 +92,8 @@ export default function Empresas() {
             validar={(v) => (v.length >= 3 ? null : 'Escribe al menos 3 letras.')} alBuscar={(v) => buscar('razon', v)} />
         )}
       </Tarjeta>
+        </Pestanas>
+      </div>
 
       {error && <Aviso tono="error" alCerrar={() => setError('')}>{error}</Aviso>}
       {cargando && <Cargando />}

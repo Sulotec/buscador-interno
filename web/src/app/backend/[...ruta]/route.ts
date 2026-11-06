@@ -22,7 +22,7 @@ const API_URL = (process.env.BUSCADOR_API_URL ?? '').replace(/\/$/, '');
 const RUTAS_PUBLICAS = new Set(['system/auth/login', 'system/auth/forgot-password', 'system/auth/reset-password']);
 // Rutas de administracion: cualquier rol que no sea ADMIN GENERAL recibe 403 sin tocar la API.
 // 'system/tokens/mi-saldo' queda fuera a proposito: cada persona ve su propio saldo.
-const SOLO_ADMIN = /^system\/(usuarios|auditoria)(\/|$)|^system\/tokens\/(?!mi-saldo$)/;
+const SOLO_ADMIN = /^system\/(usuarios|auditoria|lista-negra)(\/|$)|^system\/tokens\/(?!mi-saldo$)/;
 const MENSAJE_SOLO_ADMIN = 'Esta sección es solo para Administradores Generales.';
 const CABECERAS_DE_VUELTA = ['content-type', 'content-disposition', 'content-length', 'cache-control'];
 

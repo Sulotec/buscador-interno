@@ -31,15 +31,23 @@ export interface Analisis {
   duplicados: number;
   // Válidos que pasan LIMITE_DOCUMENTOS; quedan pendientes para la carga siguiente
   excedentes: string[];
+  // Válidos que están en la lista negra: no se envían ni se cobran
+  bloqueados: string[];
   porTipo: { nombre: string; cantidad: number }[];
 }
 
-export function analizar(texto: string, tipo: TipoLista): Analisis {
+const SIN_BLOQUEOS: ReadonlySet<string> = new Set();
+
+// Documentos que pueden estar en la lista negra: DNI o RUC de persona natural (lleva el DNI adentro)
+export const puedeEstarBloqueado = (documento: string) => /^(\d{8}|10\d{9})$/.test(documento);
+
+export function analizar(texto: string, tipo: TipoLista, bloqueadosLista: ReadonlySet<string> = SIN_BLOQUEOS): Analisis {
   const tipos = tipo === 'empresas' ? TIPOS_EMPRESAS : TIPOS_PERSONAS;
   const vistos = new Set<string>();
   const incluidos: string[] = [];
   const excedentes: string[] = [];
   const invalidos: string[] = [];
+  const bloqueados: string[] = [];
   const conteo = new Map<string, number>();
   let duplicados = 0;
   for (const bruto of texto.replace(/^﻿/, '').split(/[\s,;|]+/)) {
@@ -49,6 +57,8 @@ export function analizar(texto: string, tipo: TipoLista): Analisis {
     if (!t) { invalidos.push(bruto); continue; }
     if (vistos.has(valor)) { duplicados++; continue; }
     vistos.add(valor);
+    // Los de la lista negra no cuentan para el límite de la carga
+    if (bloqueadosLista.has(valor)) { bloqueados.push(valor); continue; }
     if (incluidos.length >= LIMITE_DOCUMENTOS) { excedentes.push(valor); continue; }
     incluidos.push(valor);
     conteo.set(t.nombre, (conteo.get(t.nombre) ?? 0) + 1);
@@ -58,16 +68,17 @@ export function analizar(texto: string, tipo: TipoLista): Analisis {
     invalidos,
     duplicados,
     excedentes,
+    bloqueados,
     porTipo: tipos.filter((t) => conteo.has(t.nombre)).map((t) => ({ nombre: t.nombre, cantidad: conteo.get(t.nombre)! })),
   };
 }
 
 // Revisión línea por línea de la lista pegada (un documento por línea), para marcar en pantalla
 // cuáles no se incluirán en el Excel. Usa las mismas reglas que analizar().
-export type EstadoLinea = 'valido' | 'invalido' | 'repetido' | 'excede' | 'ignorado';
+export type EstadoLinea = 'valido' | 'invalido' | 'repetido' | 'bloqueado' | 'excede' | 'ignorado';
 export interface LineaRevisada { texto: string; estado: EstadoLinea; repetidoDe?: number }
 
-export function revisarLineas(texto: string, tipo: TipoLista): LineaRevisada[] {
+export function revisarLineas(texto: string, tipo: TipoLista, bloqueadosLista: ReadonlySet<string> = SIN_BLOQUEOS): LineaRevisada[] {
   const tipos = tipo === 'empresas' ? TIPOS_EMPRESAS : TIPOS_PERSONAS;
   const primeraLinea = new Map<string, number>();
   let incluidos = 0;
@@ -78,6 +89,7 @@ export function revisarLineas(texto: string, tipo: TipoLista): LineaRevisada[] {
     const previa = primeraLinea.get(valor);
     if (previa !== undefined) return { texto: bruto, estado: 'repetido', repetidoDe: previa + 1 };
     primeraLinea.set(valor, indice);
+    if (bloqueadosLista.has(valor)) return { texto: bruto, estado: 'bloqueado' };
     // Del documento válido número LIMITE_DOCUMENTOS + 1 en adelante queda para la carga siguiente
     if (incluidos >= LIMITE_DOCUMENTOS) return { texto: bruto, estado: 'excede' };
     incluidos++;

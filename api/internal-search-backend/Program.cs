@@ -165,6 +165,9 @@ builder.Services.AddScoped<ITokenRepository, TokenRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuditoriaRepository, AuditoriaRepository>();
 builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
+// Lista negra de DNI que no se pueden consultar (se revisa antes de cobrar tokens)
+builder.Services.AddScoped<internal_search.Domain.Interfaces.ListaNegra.IListaNegraRepository, internal_search_backend.Infraestructure.Repositories.ListaNegra.ListaNegraRepository>();
+builder.Services.AddScoped<internal_search_backend.Business.Services.ListaNegra.IListaNegraService, internal_search_backend.Business.Services.ListaNegra.ListaNegraService>();
 
 builder.Services.AddSingleton(
     builder.Configuration.GetSection("Recuperacion").Get<RecuperacionClaveOptions>()

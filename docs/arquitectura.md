@@ -71,6 +71,29 @@ Ejemplo: búsqueda de un DNI (`POST api/buscador/buscar`).
 - Descargar el PDF no cuesta tokens, pero se audita (`DESCARGA_PDF_PERSONA`).
 - La carga masiva de **empresas** hoy no cobra tokens (decisión pendiente).
 
+## Lista negra
+
+DNI que **nadie** puede consultar, incluido ADMIN GENERAL. Tabla `RRCC.ListaNegra` (script
+`api/database/007_lista_negra.sql`); se administra en **Administración > Lista negra**, solo ADMIN GENERAL
+(`system/lista-negra`, política `AdminGeneral`, cortado también en `route.ts`).
+
+| Vía | Comportamiento con un DNI bloqueado |
+|---|---|
+| Búsqueda por DNI, ficha personal, PDF, fallecidos por DNI, empresa por RUC 10 | Responde **423** solo con el mensaje "Este DNI está en la lista negra y no se puede consultar." (el motivo y quién lo bloqueó no salen de la API; los ve ADMIN GENERAL en la lista). Se revisa **antes** de cobrar: no cuesta tokens |
+| Teléfono, nombres, fallecidos por apellidos | Se ocultan de los resultados (el filtro va fuera del caché, así aplica también a respuestas guardadas en Redis) |
+| Carga masiva (pantalla) | Antes de enviar, la web pregunta cuáles están bloqueados (`POST api/buscador/masivo/lista-negra`, sin costo), los marca en rojo "está en la lista negra", no los envía y ofrece "Quitar los de la lista negra". No deja generar el Excel mientras revisa |
+| Carga masiva de personas (API) | Respaldo si llegan igual: no se consultan ni se cobran; fila fija "Documentos no disponibles" en Resumen y hoja **No disponibles** (siempre presente, porque la web une los bloques por nombre de hoja) |
+| Carga masiva de empresas | Se quitan del archivo los RUC 10 cuyo DNI está bloqueado |
+
+- Un RUC 10 lleva el DNI de la persona (10 + DNI + dígito), por eso también se bloquea (`ListaNegraService.DniDe`).
+- **Baja lógica** (script `008_lista_negra_historial.sql`): desbloquear no borra la fila; pasa a `ACTIVO = 0` con
+  quién, cuándo y el motivo del desbloqueo (obligatorio). Un DNI puede tener varios registros en su historial, pero
+  solo uno activo (índice único filtrado `UX_RRCC_ListaNegra_DOCUMENTO_ACTIVO`). La pantalla muestra una sola
+  tabla con columna Estado: primero los bloqueados y debajo, en gris, los desbloqueados. Desbloquear: `POST system/lista-negra/{dni}/quitar` con `{ motivo }`.
+- Auditoría: `LISTA_NEGRA_AGREGAR`, `LISTA_NEGRA_QUITAR` (con el motivo del desbloqueo) y los intentos rechazados con
+  la acción de la consulta y `exito = 0`.
+- **Sin la tabla la API falla en todas las consultas de personas**: ejecutar los scripts 007 y 008 antes de desplegar.
+
 ## Seguridad
 
 - Sesión en cookie httpOnly; JWT firmado con `Jwt:Key` (mínimo 32 caracteres; sin ella la API no arranca).

@@ -1,4 +1,5 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
+using internal_search_backend.Business.Services.Exportacion;
 using internal_search.Domain.DTOs.buscador.empresa.masivo;
 using internal_search.Domain.Entities;
 
@@ -76,8 +77,8 @@ namespace internal_search_backend.Business.Services.Buscador.empresa.masivo
         {
             switch (valor)
             {
-                case null: celda.Value = string.Empty; break;
-                case string texto: celda.Value = texto; break;
+                case null: celda.Value = SinDato.Texto; break;
+                case string texto: celda.Value = SinDato.Mostrar(texto); break;
                 case DateTime fecha: celda.Value = fecha; break;
                 case decimal numeroDecimal: celda.Value = numeroDecimal; break;
                 case double numeroDouble: celda.Value = numeroDouble; break;
@@ -90,6 +91,7 @@ namespace internal_search_backend.Business.Services.Buscador.empresa.masivo
 
         private static void FormatearHoja(IXLWorksheet hoja, int columnas)
         {
+            SinDato.RellenarHoja(hoja, columnas);
             var encabezado = hoja.Range(1, 1, 1, columnas);
             encabezado.Style.Font.Bold = true;
             encabezado.Style.Font.FontColor = XLColor.White;

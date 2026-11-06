@@ -2,6 +2,17 @@
 
 export interface Pagina<T> { items: T[]; total: number; pagina: number; tamano: number }
 
+// DNI bloqueado para consulta (lista negra)
+// Nunca se borra: al desbloquear queda activo = false con quién, cuándo y por qué
+export interface RegistroListaNegra {
+  id: number; documento: string; motivo: string; codUsuario: number | null; usuario: string; fechaUtc: string;
+  activo: boolean; usuarioQuito: string | null; motivoQuito: string | null; fechaQuitoUtc: string | null;
+}
+
+export type VistaListaNegra = 'bloqueados' | 'historial';
+
+export interface ResultadoListaNegra { agregados: string[]; yaBloqueados: string[]; invalidos: string[] }
+
 export interface UsuarioListado {
   id: number; usuario: string; nombreCompleto: string; correo: string | null; estado: number; roles: string[];
   saldoTokens: number;

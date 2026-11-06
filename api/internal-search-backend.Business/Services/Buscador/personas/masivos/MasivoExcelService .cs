@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using internal_search.Domain.DTOs.buscador.persona.masivos;
 using internal_search.Domain.Entities;
+using internal_search_backend.Business.Services.Exportacion;
 
 namespace internal_search_backend.Business.Services.Buscador.personas.masivos
 {
@@ -33,6 +34,9 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             if (secciones.Contains(SeccionesMasivo.Fallecidos))
                 CrearFallecidos(workbook, resultado.Fallecidos);
 
+            // Siempre se crea (aunque quede vacía): la web une los bloques por nombre de hoja
+            CrearNoDisponibles(workbook, resultado.DocumentosNoDisponibles);
+
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             return stream.ToArray();
@@ -58,8 +62,12 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             hoja.Cell(5, 1).Value = "Documentos sin resultados (en las secciones elegidas)";
             hoja.Cell(5, 2).Value = resultado.DocumentosSinResultados.Count;
 
+            // Fila fija: la web suma los Resumen de cada bloque por número de fila
+            hoja.Cell(6, 1).Value = "Documentos no disponibles (lista negra, sin costo)";
+            hoja.Cell(6, 2).Value = resultado.DocumentosNoDisponibles.Count;
+
             // Solo se listan las secciones que el usuario eligió
-            var fila = 6;
+            var fila = 7;
 
             void AgregarConteo(string clave, string etiqueta, int cantidad)
             {
@@ -93,7 +101,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 "Apellido Paterno",
                 "Apellido Materno",
                 "Prenombres",
-                "UBIGEO RENIEC",
+                "UBIGEO",
             };
 
             for (int i = 0; i < headers.Length; i++)
@@ -408,6 +416,21 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
             FormatearHoja(hoja, headers.Length);
         }
 
+        private void CrearNoDisponibles(XLWorkbook workbook, List<string> documentos)
+        {
+            var hoja = workbook.Worksheets.Add("No disponibles");
+            hoja.Cell(1, 1).Value = "Documento";
+            hoja.Cell(1, 2).Value = "Estado";
+
+            for (int i = 0; i < documentos.Count; i++)
+            {
+                hoja.Cell(i + 2, 1).Value = documentos[i];
+                hoja.Cell(i + 2, 2).Value = "No disponible: está en la lista negra";
+            }
+
+            FormatearHoja(hoja, 2);
+        }
+
         private void FormatearHoja(
             IXLWorksheet hoja,
             int cantidadColumnas)
@@ -419,6 +442,8 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
                 cantidadColumnas);
 
             encabezado.Style.Font.Bold = true;
+
+            SinDato.RellenarHoja(hoja, cantidadColumnas);
 
             hoja.SheetView.FreezeRows(1);
 

@@ -4,7 +4,7 @@ import { Download, FileSpreadsheet, History } from 'lucide-react';
 import { useState } from 'react';
 import { Aviso, Boton, Chip, Tabla, Tarjeta, Vacio, type Columna } from '@/components/ui';
 import { ErrorApi, guardarArchivo } from '@/lib/api';
-import { fBytes, fFecha, fNumero } from '@/lib/formato';
+import { fBytes, fFecha, fNumero, fTexto } from '@/lib/formato';
 import { SECCIONES } from './documentos';
 import { servicioMasiva } from './servicio';
 import type { HistorialDescarga } from './tipos';
@@ -32,7 +32,7 @@ export function HistorialDescargas({ items, cargando }: { items: HistorialDescar
   }
 
   const columnas: Columna<HistorialDescarga>[] = [
-    { titulo: 'Archivo', celda: (h) => <div className="flex min-w-56 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#e8f5ed] text-[#23834b]"><FileSpreadsheet className="size-4" /></span><span className="max-w-64 truncate font-semibold text-texto" title={h.archivo}>{h.archivo}</span></div>, className: 'py-4' },
+    { titulo: 'Archivo', celda: (h) => <div className="flex min-w-56 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#e8f5ed] text-[#23834b]"><FileSpreadsheet className="size-4" /></span><span className="max-w-64 truncate font-semibold text-texto" title={h.archivo}>{fTexto(h.archivo)}</span></div>, className: 'py-4' },
     { titulo: 'Fecha', celda: (h) => <span className="text-sm text-gris">{fFecha(h.fecha, true)}</span> },
     { titulo: 'Documentos', celda: (h) => <span className="font-semibold tabular-nums text-texto">{fNumero(h.totalDnis)}</span>, derecha: true },
     { titulo: 'Con resultados', celda: (h) => <span className="font-semibold tabular-nums text-[#23834b]">{fNumero(h.dnisConResultados ?? null)}</span>, derecha: true },

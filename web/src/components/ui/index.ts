@@ -7,3 +7,4 @@ export * from './pestanas';
 export * from './tabla';
 export * from './paginacion';
 export * from './modal';
+export * from './visor-pdf';

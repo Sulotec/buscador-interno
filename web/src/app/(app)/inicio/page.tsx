@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Building2, Check, ClipboardList, FileSpreadsheet, Search, UserSearch, Users } from 'lucide-react';
+import { ArrowRight, Ban, Check, ClipboardList, FileSpreadsheet, Search, UserSearch, Users } from 'lucide-react';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { Aviso } from '@/components/ui';
 
@@ -12,6 +12,7 @@ const TONOS_ACCESO: Record<string, { fondo: string; marco: string; icono: string
   '/personas/masiva': { fondo: 'bg-[#FAEEDA]', marco: 'bg-[#FAC775]', icono: 'bg-[#FAC775]/60', texto: 'text-[#854F0B]', acento: '#EF9F27' },
   '/admin/usuarios': { fondo: 'bg-[#FAECE7]', marco: 'bg-[#F5C4B3]', icono: 'bg-[#F5C4B3]/60', texto: 'text-[#993C1D]', acento: '#D85A30' },
   '/admin/auditoria': { fondo: 'bg-[#F1EFE8]', marco: 'bg-[#D3D1C7]', icono: 'bg-[#D3D1C7]/60', texto: 'text-[#5F5E5A]', acento: '#888780' },
+  '/admin/lista-negra': { fondo: 'bg-[#FCEBEB]', marco: 'bg-[#F7C1C1]', icono: 'bg-[#F7C1C1]/60', texto: 'text-[#A32D2D]', acento: '#E24B4A' },
 };
 
 export default function Inicio() {
@@ -29,17 +30,18 @@ export default function Inicio() {
     else setAviso('Escribe un DNI (8 dígitos), un RUC de empresa (11 dígitos, inicia con 20) o un celular (9 dígitos).');
   }
 
-  const accesos = [
-    { href: '/personas', titulo: 'Personas', texto: 'Consulta por DNI o teléfono, con RENIEC, deudas, líneas, laboral y teléfonos.', icono: UserSearch },
-    { href: '/empresas', titulo: 'Empresas', texto: 'Consulta por RUC o razón social.', icono: Building2 },
-    { href: '/personas/masiva', titulo: 'Carga masiva', texto: 'Hasta 10 000 documentos en un Excel.', icono: FileSpreadsheet },
-    ...(esAdmin ? [
-      { href: '/admin/usuarios', titulo: 'Usuarios y tokens', texto: 'Crea cuentas, asigna roles y tokens.', icono: Users },
-      { href: '/admin/auditoria', titulo: 'Auditoría', texto: 'Quién consultó qué y cuándo.', icono: ClipboardList },
-    ] : []),
+  // Listas separadas: así comentar o agregar un acceso principal no mueve los de administración
+  const accesosPrincipales = [
+    { href: '/personas', titulo: 'Personas', texto: 'Consulta por DNI, teléfono, nombres o fallecidos: ficha personal, deudas, líneas, información laboral, teléfonos y PDF.', icono: UserSearch },
+    // Empresas está oculto en el menú lateral (components/layout/shell.tsx); descomentar junto con el menú.
+    // { href: '/empresas', titulo: 'Empresas', texto: 'Consulta por RUC o razón social.', icono: Building2 },
+    { href: '/personas/masiva', titulo: 'Carga masiva', texto: 'Listas de documentos en un Excel: 5 000 por carga y, si son más, continúas con un clic.', icono: FileSpreadsheet },
   ];
-  const accesosPrincipales = accesos.slice(0, 3);
-  const accesosAdmin = accesos.slice(3);
+  const accesosAdmin = esAdmin ? [
+    { href: '/admin/usuarios', titulo: 'Usuarios y tokens', texto: 'Crea cuentas, asigna roles y recarga tokens.', icono: Users },
+    { href: '/admin/auditoria', titulo: 'Auditoría', texto: 'Quién consultó qué y cuándo.', icono: ClipboardList },
+    { href: '/admin/lista-negra', titulo: 'Lista negra', texto: 'DNI que nadie puede consultar.', icono: Ban },
+  ] : [];
 
   return (
     <div className="space-y-7">
@@ -80,7 +82,7 @@ export default function Inicio() {
       </section>
       {aviso && <Aviso tono="alerta" alCerrar={() => setAviso('')}>{aviso}</Aviso>}
 
-      <section aria-label="Accesos principales" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section aria-label="Accesos principales" className="grid gap-3 sm:grid-cols-2">
         {accesosPrincipales.map(({ href, titulo, texto: t, icono: Icono }, i) => {
           const tono = TONOS_ACCESO[href];
           return <Link key={href} href={href} style={{ animationDelay: `${i * 50}ms`, '--acento': tono.acento } as React.CSSProperties}
@@ -106,7 +108,7 @@ export default function Inicio() {
       </section>
       {accesosAdmin.length > 0 && <section aria-labelledby="accesos-admin">
         <h2 id="accesos-admin" className="mb-3 text-sm font-semibold text-texto">Administración</h2>
-        <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {accesosAdmin.map(({ href, titulo, texto: t, icono: Icono }) => {
             const tono = TONOS_ACCESO[href];
             return <Link key={href} href={href} style={{ '--acento': tono.acento } as React.CSSProperties} className={`group relative isolate flex items-center gap-3 overflow-hidden rounded-xl p-[3px] transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul/30 ${tono.marco}`}>

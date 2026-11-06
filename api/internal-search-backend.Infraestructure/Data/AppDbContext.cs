@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<TokenMovimiento> TokenMovimientos { get; set; }
     public DbSet<AuditoriaRegistro> Auditoria { get; set; }
     public DbSet<ConsultaReniec> ConsultasReniec { get; set; }
+    public DbSet<ListaNegra> ListaNegra { get; set; }
 
     public DbSet<Calificacion> Calificaciones { get; set; }
     public DbSet<Deuda> Deudas { get; set; }
@@ -100,6 +101,24 @@ public class AppDbContext : DbContext
                 .HasColumnType("datetime2")
                 .HasDefaultValueSql("SYSDATETIME()")
                 .ValueGeneratedOnAdd();
+        });
+
+        modelBuilder.Entity<ListaNegra>(e =>
+        {
+            // Scripts 007 + 008 (historial con baja lógica)
+            e.ToTable("ListaNegra", "RRCC");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("ID").ValueGeneratedOnAdd();
+            e.Property(x => x.Documento).HasColumnName("DOCUMENTO").HasColumnType("char(8)");
+            e.Property(x => x.Motivo).HasColumnName("MOTIVO").HasMaxLength(250);
+            e.Property(x => x.CodUsuario).HasColumnName("COD_USUARIO");
+            e.Property(x => x.Usuario).HasColumnName("USUARIO").HasMaxLength(50);
+            e.Property(x => x.FechaUtc).HasColumnName("FECHA_UTC").HasColumnType("datetime2(0)");
+            e.Property(x => x.Activo).HasColumnName("ACTIVO");
+            e.Property(x => x.CodUsuarioQuito).HasColumnName("COD_USUARIO_QUITO");
+            e.Property(x => x.UsuarioQuito).HasColumnName("USUARIO_QUITO").HasMaxLength(50);
+            e.Property(x => x.MotivoQuito).HasColumnName("MOTIVO_QUITO").HasMaxLength(250);
+            e.Property(x => x.FechaQuitoUtc).HasColumnName("FECHA_QUITO_UTC").HasColumnType("datetime2(0)");
         });
 
         modelBuilder.Entity<ConsultaReniec>(e =>

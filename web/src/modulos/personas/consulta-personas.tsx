@@ -2,16 +2,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Banknote, Briefcase, Check, CreditCard, FileDown, Gauge, HeartCrack, IdCard, Phone, Search, UserRound, UserSearch, X } from 'lucide-react';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
-import { FichaReniec } from '@/modulos/personas/ficha-reniec';
+import { ModalReniec } from '@/modulos/personas/ficha-reniec';
 import { colMoviles, Operadora, Resumen, Seccion, SeccionPersonas, SeccionesResultado, type CategoriaSeccionResultado } from '@/modulos/consultas/resultados';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Vacio } from '@/components/ui';
-import { ErrorApi, guardarArchivo } from '@/lib/api';
+import { Aviso, Boton, Cargando, Encabezado, Modal, Pestanas, Tabla, Vacio, VisorPdf } from '@/components/ui';
+import { ErrorApi, type Archivo } from '@/lib/api';
 import { servicioPersonas } from '@/modulos/personas/servicio';
 import { DOCUMENTOS, esTipoDocumento, type TipoDocumento } from '@/modulos/personas/documentos';
 import { BusquedaGlobalPersonas, detectarTipoDocumento } from '@/modulos/personas/busqueda-global';
 import { BUSQUEDA_NOMBRES_DISPONIBLE, ConsultaIndividual } from '@/modulos/personas/consulta-individual';
-import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
+import { fFecha, fNumero, fPeriodo, fTexto, nombreCompleto, SIN_DATO } from '@/lib/formato';
 import type { RegistroFallecido, ResultadoFallecidos, ResultadoNombre, ResultadoTelefono } from '@/modulos/personas/tipos';
 
 type CategoriaResultados = CategoriaSeccionResultado | 'fallecidos';
@@ -61,7 +61,11 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
   const [error, setError] = useState('');
   const [mostrarGuia, setMostrarGuia] = useState(false);
   const [cargandoReniec, setCargandoReniec] = useState(false);
+  // Popup con la ficha RENIEC (se reabre sin volver a consultar)
+  const [mostrarReniec, setMostrarReniec] = useState(false);
   const [cargandoPdf, setCargandoPdf] = useState(false);
+  // PDF generado que se muestra en el popup de vista previa
+  const [pdfVista, setPdfVista] = useState<Archivo | null>(null);
   const apePat = busquedaPersona.apellidoPaterno;
   const apeMat = busquedaPersona.apellidoMaterno;
   const nombres = busquedaPersona.nombres;
@@ -354,13 +358,16 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
 
   async function consultarReniec() {
     if (!persona) return;
+    // Ya se consultó este DNI: solo se vuelve a abrir el popup, sin gastar otra consulta
+    if (reniec) { setMostrarReniec(true); return; }
     setCargandoReniec(true);
     try {
       const respuesta = await servicioPersonas.reniec(persona.documento);
       setReniec(respuesta);
+      setMostrarReniec(true);
 
     } catch (e) {
-      setError(e instanceof ErrorApi ? e.message : 'No se pudo consultar RENIEC.');
+      setError(e instanceof ErrorApi ? e.message : 'No se pudo consultar la ficha personal.');
     } finally {
       setCargandoReniec(false);
       actualizarSaldo();
@@ -372,7 +379,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     setCargandoPdf(true);
     setError('');
     try {
-      guardarArchivo(await servicioPersonas.exportarPdf(persona, consultado?.tipo ?? tipo, nombrePersona));
+      setPdfVista(await servicioPersonas.exportarPdf(persona, consultado?.tipo ?? tipo, nombrePersona));
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo generar el archivo PDF.');
     } finally {
@@ -403,9 +410,9 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     : '';
   const nombreDesdeMovil = persona?.moviles
     .map((m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat))
-    .find((nombre) => nombre !== '—');
+    .find((nombre) => nombre !== SIN_DATO);
   const nombrePersona = persona?.nombreCompleto
-    || (nombreDesdeCalificacion && nombreDesdeCalificacion !== '—'
+    || (nombreDesdeCalificacion && nombreDesdeCalificacion !== SIN_DATO
       ? nombreDesdeCalificacion
       : '')
     || persona?.deudas.find((d) => d.razonSocial?.trim())?.razonSocial?.trim()
@@ -414,7 +421,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
     || '';
   const titularesTelefono = [...new Set(telefono?.registros
     .map((m) => nombreCompleto(m.prenombres, m.apePat, m.apeMat))
-    .filter((nombre) => nombre !== '—') ?? [])];
+    .filter((nombre) => nombre !== SIN_DATO) ?? [])];
 
   const clientesTelefono = [...new Map(telefono?.registros.map((registro) => {
     const nombre = nombreCompleto(registro.prenombres, registro.apePat, registro.apeMat);
@@ -444,6 +451,8 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             else { limpiarBusquedaLocal(); setVistaBusqueda(null); }
           }}>Limpiar</Boton>
         </div>} />
+      <ModalReniec r={reniec} abierto={mostrarReniec} alCerrar={() => setMostrarReniec(false)} />
+      <VisorPdf archivo={pdfVista} alCerrar={() => setPdfVista(null)} titulo="Vista previa de la ficha" />
       <Modal abierto={mostrarGuia} titulo="Guía rápida de consulta" alCerrar={() => setMostrarGuia(false)} ancho="max-w-3xl">
         <p className="mb-5 text-sm text-gris">Cómo buscar, elegir una persona y revisar sus datos.</p>
         <ol className="grid gap-5 sm:grid-cols-2">
@@ -543,11 +552,10 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
             </div>
             <div className="flex flex-wrap gap-2">
               <Boton variante="primario" className="shadow-md hover:-translate-y-0.5 hover:shadow-lg" onClick={exportarPdf} cargando={cargandoPdf} disabled={consultaEnCurso}><FileDown className="size-4" />Descargar PDF</Boton>
-              {consultado?.tipo === 'DNI' && !reniec && <Boton variante="secundario" className="!border-2 !border-azul !bg-white shadow-sm hover:-translate-y-0.5 hover:!bg-azul-10 hover:shadow-md" onClick={consultarReniec} cargando={cargandoReniec} disabled={consultaEnCurso}><IdCard className="size-4 text-rojo" />Ver datos RENIEC</Boton>}
+              {consultado?.tipo === 'DNI' && <Boton variante="secundario" className="!border-2 !border-azul !bg-white shadow-sm hover:-translate-y-0.5 hover:!bg-azul-10 hover:shadow-md" onClick={consultarReniec} cargando={cargandoReniec} disabled={consultaEnCurso}><IdCard className="size-4 text-rojo" />Ver ficha personal</Boton>}
             </div>
           </div>
           {consultado?.tipo === 'DNI' && !persona.esDniValido && <Aviso tono="alerta">El DNI no figura como válido en las fuentes consultadas.</Aviso>}
-          {reniec && <FichaReniec r={reniec} />}
           <Resumen s={persona} />
           {mostrarResultadosPorTab ? <>
             <Pestanas<CategoriaResultados>
@@ -563,7 +571,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                 { id: 'lineas', texto: 'Líneas de crédito', icono: <CreditCard className="size-4" /> },
                 { id: 'fallecidos', texto: 'Fallecidos', icono: <HeartCrack className="size-4" /> },
               ]}
-            />
+            >
             {tipoConsulta === 'global' && busquedaGlobalCargando
               ? <div className="rounded-xl border border-borde bg-white"><Cargando texto="Cargando datos de la persona seleccionada..." /></div>
               : categoriaResultados === 'fallecidos'
@@ -577,6 +585,7 @@ export function ConsultaPersonas({ tipoConsulta }: { tipoConsulta: 'global' | 's
                 : categoriaResultados === 'telefonos'
                   ? <SeccionesResultado s={persona} categoria="telefonos" />
                 : <SeccionesResultado s={persona} categoria={categoriaResultados} ocultarTelefonos />}
+            </Pestanas>
           </> : <>
             <SeccionesResultado s={persona} ocultarTelefonos />
             {consultado?.tipo === 'DNI' && <Seccion titulo="Fallecidos" icono={<HeartCrack className="size-[18px]" />} cantidad={persona.fallecidos?.length ?? 0}>

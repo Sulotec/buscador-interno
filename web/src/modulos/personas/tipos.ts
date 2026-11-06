@@ -34,7 +34,8 @@ export interface ReniecPersona {
 
 export interface ResultadoReniec {
   dni: string; encontrado: boolean;
-  datos: { foto?: string; firma?: string; listaAni?: ReniecPersona[] } | null;
+  // hDerecha/hIzquierda solo llegan si el backend tiene activado Reniec:IncluirHuellas
+  datos: { foto?: string; firma?: string; hDerecha?: string; hIzquierda?: string; listaAni?: ReniecPersona[] } | null;
 }
 
 export interface FiltrosFallecidos {

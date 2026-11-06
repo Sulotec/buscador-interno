@@ -17,6 +17,8 @@ const seguridad = [
       "img-src 'self' data: blob:",
       "font-src 'self'",
       "connect-src 'self' https://cloudflareinsights.com",
+      // Vista previa del PDF en un popup: solo documentos generados en el propio navegador (blob:).
+      "frame-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

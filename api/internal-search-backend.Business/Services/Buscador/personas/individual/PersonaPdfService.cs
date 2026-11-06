@@ -1,3 +1,4 @@
+﻿using internal_search_backend.Business.Services.Exportacion;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -147,28 +148,90 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
             var entidades = deudasRecientes.Select(deuda => deuda.Entidad)
                 .Where(entidad => !string.IsNullOrWhiteSpace(entidad))
                 .Distinct(StringComparer.OrdinalIgnoreCase).Count();
-            var peorCalificacion = ObtenerPeorCalificacion(resultado.Deudas);
+            var hayDeudas = ultimoPeriodo.Length == 6;
+
+            // Saldo de líneas de crédito: suma de la línea disponible (no utilizada) del último periodo
+            var lineas = SoloUltimoPeriodo(resultado.LineasCredito, linea => linea.Periodo);
+            var periodoLineas = lineas.FirstOrDefault()?.Periodo;
+            var disponible = lineas.Sum(linea => linea.LineaNoUtilizada ?? 0m);
+
+            // Sueldo estimado: el rango más alto y el nivel de ingreso más alto del último periodo
+            var sueldos = SoloUltimoPeriodo(resultado.Sueldos, sueldo => sueldo.Periodo);
+            var rangoAlto = sueldos.Select(sueldo => sueldo.RangoSueldo).Where(r => !SinDato.EsVacio(r))
+                .Select(r => r!.Trim()).OrderByDescending(TopeRango).FirstOrDefault();
+            var nivelAlto = sueldos.Select(sueldo => sueldo.NivelIngreso).Where(n => !SinDato.EsVacio(n))
+                .Select(n => n!.Trim()).OrderByDescending(PesoNivel).FirstOrDefault();
 
             column.Item().PaddingTop(3).PaddingBottom(2).Row(row =>
             {
-                TarjetaResumen(row.RelativeItem(), "Deuda total", ultimoPeriodo.Length == 6 ? FormatearPeriodo(ultimoPeriodo) : "Sin deudas reportadas",
-                    ultimoPeriodo.Length == 6 ? FormatearMoneda(deudaTotal) : "—", "#534AB7", "#EEEDFE");
+                TarjetaResumen(row.RelativeItem(), "Deuda total", hayDeudas ? FormatearPeriodo(ultimoPeriodo) : "Sin deudas reportadas",
+                    hayDeudas ? FormatearMoneda(deudaTotal) : SinDato.Texto, "#534AB7", "#EEEDFE");
                 row.ConstantItem(7);
-                TarjetaResumen(row.RelativeItem(), "Entidades", "En el último periodo", entidades.ToString(Cultura), "#0F6E56", "#E1F5EE");
+                TarjetaResumen(row.RelativeItem(), "Saldo de líneas de crédito",
+                    lineas.Count > 0 ? $"Disponible · {FormatearPeriodo(periodoLineas)}" : "Sin líneas reportadas",
+                    lineas.Count > 0 ? FormatearMoneda(disponible) : SinDato.Texto, "#3B6D11", "#EAF3DE");
                 row.ConstantItem(7);
-                TarjetaResumen(row.RelativeItem(), "Peor calificación", "En el historial", peorCalificacion, "#A32D2D", "#FCEBEB");
+                TarjetaResumen(row.RelativeItem(), "N.º de entidades", "En el último periodo",
+                    hayDeudas ? entidades.ToString(Cultura) : SinDato.Texto, "#0F6E56", "#E1F5EE");
                 row.ConstantItem(7);
-                TarjetaResumen(row.RelativeItem(), "Sueldo reportado", "Último registro", "—", "#854F0B", "#FAEEDA");
+                TarjetaResumen(row.RelativeItem(), "Sueldo estimado reportado",
+                    nivelAlto ?? "Rango más alto reportado",
+                    rangoAlto ?? SinDato.Texto, "#854F0B", "#FAEEDA",
+                    nivelAlto is null ? null : ColorNivel(nivelAlto));
             });
         }
 
-        private static void TarjetaResumen(IContainer contenedor, string titulo, string nota, string valor, string color, string fondo)
+        // Color del texto del nivel de ingreso: alto verde, medio naranja, bajo rojo (igual que en la web).
+        private static string ColorNivel(string nivel)
+        {
+            var peso = PesoNivel(nivel);
+            var tono = peso >= 10
+                ? (peso >= 13 ? "alto" : peso == 12 ? "medio" : "bajo")
+                : peso >= 4 ? "alto" : peso == 3 ? "medio" : peso >= 1 ? "bajo" : "medio";
+            return tono switch
+            {
+                "alto" => "#3B6D11",
+                "bajo" => "#A32D2D",
+                _ => "#B45309",
+            };
+        }
+
+        // Valor de un rango de sueldo para compararlo: su monto más alto ("S/ 1,500 - 2,500" -> 2500).
+        private static decimal TopeRango(string rango)
+        {
+            var montos = System.Text.RegularExpressions.Regex.Matches(rango, @"\d[\d.,]*")
+                .Select(m => System.Text.RegularExpressions.Regex.Replace(m.Value, @"[.,](?=\d{3}(\D|$))", "").Replace(',', '.'))
+                .Select(t => decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var n) ? n : (decimal?)null)
+                .Where(n => n.HasValue).Select(n => n!.Value).ToList();
+            return montos.Count > 0 ? montos.Max() : -1m;
+        }
+
+        // Orden de los niveles de ingreso, de menor a mayor. Acepta textos (BAJO ... MUY ALTO) o letras (E ... A).
+        private static int PesoNivel(string nivel)
+        {
+            var v = nivel.Trim().ToUpperInvariant();
+            if (System.Text.RegularExpressions.Regex.IsMatch(v, @"^[A-E]\d?$")) return 10 + "EDCBA".IndexOf(v[0]);
+            if (v.Contains("MUY ALTO")) return 6;
+            if (v.Contains("MEDIO ALTO")) return 4;
+            if (v.Contains("MEDIO BAJO")) return 2;
+            if (v.Contains("ALTO")) return 5;
+            if (v.Contains("MEDIO")) return 3;
+            if (v.Contains("BAJO")) return 1;
+            return 0;
+        }
+
+        // colorNota: si viene, la nota se resalta como etiqueta de ese color (p. ej. el nivel de ingreso).
+        private static void TarjetaResumen(IContainer contenedor, string titulo, string nota, string valor, string color, string fondo, string? colorNota = null)
         {
             contenedor.Background(fondo).Border(1).BorderColor(color).Padding(8).Column(card =>
             {
                 card.Item().Text(titulo).FontSize(7).Bold().FontColor(color);
                 card.Item().PaddingTop(5).Text(valor).FontSize(12).Bold().FontColor(ColorTexto).ClampLines(1);
-                card.Item().PaddingTop(2).Text(nota).FontSize(6.5f).FontColor("#64748B").ClampLines(1);
+                if (colorNota is null)
+                    card.Item().PaddingTop(2).Text(nota).FontSize(6.5f).FontColor("#64748B").ClampLines(1);
+                else
+                    card.Item().PaddingTop(3).AlignLeft().Background(colorNota).PaddingHorizontal(4).PaddingVertical(1.5f)
+                        .Text(nota).FontSize(6.5f).Bold().FontColor("#FFFFFF").ClampLines(1);
             });
         }
         private static void AgregarPanelCalificaciones(ColumnDescriptor column, BuscadorHistorialResponse resultado)
@@ -334,7 +397,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.TipoDeuda));
                         table.Cell().Element(cell => CeldaRegistro(cell, deudas.IndexOf(deuda)))
                             .Element(cell => EtiquetaCalificacion(cell, deuda.Calificacion));
-                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? "—");
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? SinDato.Texto);
                         table.Cell().Element(CeldaTabla).AlignCenter().Text(FormatearMoneda(deuda.Saldo)).Bold();
                     }
                     table.Cell().ColumnSpan(5).Background("#F4F7FB").Padding(7).AlignCenter()
@@ -390,7 +453,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         table.Cell().Element(CeldaTabla).Text(FormatearPeriodo(deuda.Periodo));
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.Entidad)).Bold();
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.TipoDeuda)).FontColor("#68778D");
-                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? "—");
+                        table.Cell().Element(CeldaTabla).AlignCenter().Text(deuda.Dias?.ToString(Cultura) ?? SinDato.Texto);
                         table.Cell().Element(CeldaTabla).Text(Mostrar(deuda.Calificacion));
                         table.Cell().Element(CeldaTabla).AlignCenter().Text(FormatearMoneda(deuda.Saldo)).Bold().FontColor(ColorPrimario);
                     }
@@ -429,8 +492,8 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 {
                     FormatearPeriodo(linea.Periodo),
                     Mostrar(linea.Entidad), Mostrar(linea.Tipo),
-                    total > 0 ? FormatearPorcentaje(usado / total * 100m) : "—",
-                    total > 0 ? FormatearPorcentaje(noUsado / total * 100m) : "—",
+                    total > 0 ? FormatearPorcentaje(usado / total * 100m) : SinDato.Texto,
+                    total > 0 ? FormatearPorcentaje(noUsado / total * 100m) : SinDato.Texto,
                     FormatearMoneda(linea.LineaCreditoMonto)
                 };
             }).ToList();
@@ -479,11 +542,11 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 return;
 
             AgregarSeccionEstandard(column, "Personas", resultado.Personas.Count,
-                new[] { "Tipo doc.", "DNI", "Fecha nacimiento", "Apellido paterno", "Apellido materno", "Prenombres", "Ubigeo RENIEC" },
+                new[] { "Tipo doc.", "DNI", "Fecha nacimiento", "Apellido paterno", "Apellido materno", "Prenombres", "Ubigeo" },
                 resultado.Personas.Select(persona => new[]
                 {
                     Mostrar(persona.TipoDoc), Mostrar(persona.Dni),
-                    persona.FechaNacimiento?.ToString("dd/MM/yyyy", Cultura) ?? "—",
+                    persona.FechaNacimiento?.ToString("dd/MM/yyyy", Cultura) ?? SinDato.Texto,
                     Mostrar(persona.ApePat), Mostrar(persona.ApeMat), Mostrar(persona.Prenombres),
                     Mostrar(string.IsNullOrWhiteSpace(persona.UbigeoDescripcion) ? persona.UbigeoReniec : persona.UbigeoDescripcion)
                 }).ToList(), "No registra personas.");
@@ -497,7 +560,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                     FormatearPeriodo(movil.Periodo), Mostrar(movil.EmpresaOperadora), Mostrar(movil.Telefono),
                     Mostrar(string.Join(" ", new[] { movil.Prenombres, movil.ApePat, movil.ApeMat }.Where(v => !string.IsNullOrWhiteSpace(v)))),
                     Mostrar(string.Join(" / ", new[] { movil.PlanMovil, movil.Modalidad }.Where(v => !string.IsNullOrWhiteSpace(v)))),
-                    movil.FechaAlta?.ToString("dd/MM/yyyy", Cultura) ?? "—"
+                    movil.FechaAlta?.ToString("dd/MM/yyyy", Cultura) ?? SinDato.Texto
                 }).ToList(), "No registra teléfonos.");
 
         // La pantalla y el PDF muestran todos los registros del periodo más reciente de cada sección.
@@ -546,7 +609,7 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                         var fila = filas[numeroFila];
                         for (var indice = 0; indice < encabezados.Length; indice++)
                         {
-                            var valor = indice < fila.Length ? fila[indice] : "—";
+                            var valor = indice < fila.Length ? fila[indice] : SinDato.Texto;
                             var encabezado = encabezados[indice];
                             if (encabezado.Contains("utilizado", StringComparison.OrdinalIgnoreCase))
                             {
@@ -564,23 +627,6 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 });
             });
         }
-        private static string ObtenerPeorCalificacion(IEnumerable<internal_search.Domain.Entities.Deuda> deudas)
-        {
-            var valores = deudas.Select(deuda => deuda.Calificacion)
-                .Where(valor => !string.IsNullOrWhiteSpace(valor)).ToList();
-            if (valores.Count == 0)
-                return "—";
-
-            var peor = valores.OrderByDescending(valor =>
-            {
-                var texto = valor!.ToUpperInvariant();
-                if (texto.Contains("NOR") || texto == "0") return 0;
-                if (texto.Contains("CPP") || texto == "1") return 1;
-                return 2;
-            }).First();
-            return Mostrar(peor);
-        }
-
         private static string FormatearPeriodo(string? periodo)
         {
             if (periodo is { Length: 6 } && int.TryParse(periodo.AsSpan(4, 2), out var mes)
@@ -590,12 +636,11 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
         }
 
         private static string FormatearMoneda(decimal? valor) =>
-            valor.HasValue ? $"S/ {valor.Value.ToString("N2", Cultura)}" : "—";
+            valor.HasValue ? $"S/ {valor.Value.ToString("N2", Cultura)}" : SinDato.Texto;
 
         private static string FormatearPorcentaje(decimal? valor) =>
-            valor.HasValue ? $"{valor.Value.ToString("0.##", Cultura)}%" : "—";
+            valor.HasValue ? $"{valor.Value.ToString("0.##", Cultura)}%" : SinDato.Texto;
 
-        private static string Mostrar(string? valor) =>
-            string.IsNullOrWhiteSpace(valor) ? "—" : valor.Trim();
+        private static string Mostrar(string? valor) => SinDato.Mostrar(valor);
     }
 }

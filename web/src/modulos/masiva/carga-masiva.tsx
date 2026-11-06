@@ -5,9 +5,9 @@ import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Databas
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Aviso, Boton, Chip, Pestanas, Tarjeta } from '@/components/ui';
 import { guardarArchivo, type Archivo } from '@/lib/api';
-import { fNumero } from '@/lib/formato';
+import { fNumero, SIN_DATO } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
-import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, revisarLineas, seccionesDe, type TipoLista } from './documentos';
+import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, puedeEstarBloqueado, revisarLineas, seccionesDe, type TipoLista } from './documentos';
 import { combinarExcels } from './combinar-excels';
 import { HistorialDescargas } from './historial';
 import { servicioMasiva } from './servicio';
@@ -57,12 +57,37 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const [progresoBloques, setProgresoBloques] = useState<{ clave: string; archivos: Archivo[] } | null>(null);
 
   const etiqueta = tipo === 'empresas' ? 'RUC' : 'documentos';
-  const analisis = useMemo(() => analizar(texto, tipo), [texto, tipo]);
-  // No válidos o repetidos (rojo) se omiten solos; los que pasan de 5000 (ámbar) quedan para la carga siguiente
-  const lineas = useMemo(() => revisarLineas(texto, tipo), [texto, tipo]);
+
+  // Lista negra: se pregunta a la API cuáles de la lista están bloqueados (sin costo) para marcarlos en rojo
+  // y no enviarlos. Mientras responde, no se deja generar el Excel para que lo que se ve cuadre con el cobro.
+  const candidatos = useMemo(() => {
+    const previo = analizar(texto, tipo);
+    return [...previo.validos, ...previo.excedentes].filter(puedeEstarBloqueado);
+  }, [texto, tipo]);
+  const claveCandidatos = candidatos.join(',');
+  const [listaNegra, setListaNegra] = useState<{ clave: string; bloqueados: ReadonlySet<string> } | null>(null);
+  useEffect(() => {
+    if (!candidatos.length) return;
+    let vigente = true;
+    const espera = setTimeout(() => {
+      servicioMasiva.listaNegra(candidatos)
+        .then((b) => { if (vigente) setListaNegra({ clave: claveCandidatos, bloqueados: new Set(b) }); })
+        // Si no se pudo revisar, se deja continuar: la API igual excluye los bloqueados al procesar
+        .catch(() => { if (vigente) setListaNegra({ clave: claveCandidatos, bloqueados: new Set() }); });
+    }, 400);
+    return () => { vigente = false; clearTimeout(espera); };
+  }, [candidatos, claveCandidatos]);
+  const bloqueadosLista = useMemo<ReadonlySet<string>>(
+    () => (listaNegra?.clave === claveCandidatos ? listaNegra.bloqueados : new Set()), [listaNegra, claveCandidatos]);
+  const revisandoListaNegra = candidatos.length > 0 && listaNegra?.clave !== claveCandidatos;
+
+  const analisis = useMemo(() => analizar(texto, tipo, bloqueadosLista), [texto, tipo, bloqueadosLista]);
+  // No válidos, repetidos o en lista negra (rojo) se omiten solos; los que pasan de 5000 (ámbar) quedan para la carga siguiente
+  const lineas = useMemo(() => revisarLineas(texto, tipo, bloqueadosLista), [texto, tipo, bloqueadosLista]);
   const noValidos = analisis.invalidos.length + analisis.duplicados;
+  const enListaNegra = analisis.bloqueados.length;
   const excedentes = analisis.excedentes.length;
-  const excluidos = noValidos + excedentes;
+  const excluidos = noValidos + enListaNegra + excedentes;
   const fondoListaRef = useRef<HTMLDivElement>(null);
 
   // Contador de cargas para listas de más de 5000: "Carga 2 de 4 · faltan 6.000"
@@ -75,8 +100,16 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const cambiarTexto = (valor: string) => actualizar({ texto: valor, nombreArchivo: '', serieTotal: null });
   // Opcional: los no válidos ya se omiten solos; esto solo limpia la lista a la vista
   const quitarNoValidos = () => {
-    setTexto(lineas.filter((l) => l.estado === 'valido' || l.estado === 'excede').map((l) => l.texto.trim()).join('\n'));
+    setTexto(lineas.filter((l) => l.estado === 'valido' || l.estado === 'excede' || l.estado === 'bloqueado').map((l) => l.texto.trim()).join('\n'));
     setNombreArchivo('');
+  };
+  // Quita de la lista los DNI que están en la lista negra (también funciona con un archivo cargado)
+  const quitarListaNegra = () => {
+    const fuera = new Set(analisis.bloqueados);
+    const quedan = texto.replace(/^﻿/, '').split(/[\s,;|]+/)
+      .filter((bruto) => !fuera.has(bruto.replace(/["']/g, '').trim().toUpperCase()))
+      .map((bruto) => bruto.trim()).filter(Boolean);
+    actualizar({ texto: quedan.join('\n'), nombreArchivo: '', serieTotal: null });
   };
   // Al terminar una carga: deja en la lista solo los pendientes, lista para la siguiente
   const cargarPendientes = () => {
@@ -119,7 +152,10 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
   const faltanTokens = Boolean(cobraTokens && saldo && saldo.saldo < documentosPendientes);
 
   const problema = !secciones.length ? 'Elige al menos una sección.'
-    : !analisis.validos.length ? `Agrega al menos un ${tipo === 'empresas' ? 'RUC' : 'documento'} válido.`
+    : revisandoListaNegra ? 'Revisando la lista negra…'
+    : !analisis.validos.length ? (enListaNegra > 0
+      ? `Todos los ${tipo === 'empresas' ? 'RUC' : 'documentos'} válidos están en la lista negra. Quítalos o agrega otros.`
+      : `Agrega al menos un ${tipo === 'empresas' ? 'RUC' : 'documento'} válido.`)
       : faltanTokens ? `Necesitas ${fNumero(documentosPendientes)} tokens y tienes ${fNumero(saldo!.saldo)}. Pide más a un Administrador General.` : null;
 
   // Una carga de hasta 5000 documentos. Si la lista es más larga, al terminar quedan los pendientes
@@ -249,13 +285,13 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
               <div ref={fondoListaRef} aria-hidden className="numeros pointer-events-none absolute inset-0 overflow-hidden whitespace-pre p-4 text-sm leading-6 text-texto">
                 {texto && lineas.map((linea, i) => (
                   <div key={i} className={clsx(
-                    (linea.estado === 'invalido' || linea.estado === 'repetido') && 'rounded bg-peligro-10 text-peligro',
+                    (linea.estado === 'invalido' || linea.estado === 'repetido' || linea.estado === 'bloqueado') && 'rounded bg-peligro-10 text-peligro',
                     linea.estado === 'excede' && 'rounded bg-ambar-10 text-ambar',
                   )}>
-                    <span className={clsx((linea.estado === 'invalido' || linea.estado === 'repetido') && 'line-through decoration-peligro/60')}>{linea.texto || ' '}</span>
-                    {(linea.estado === 'invalido' || linea.estado === 'repetido') && (
+                    <span className={clsx((linea.estado === 'invalido' || linea.estado === 'repetido' || linea.estado === 'bloqueado') && 'line-through decoration-peligro/60')}>{linea.texto || ' '}</span>
+                    {(linea.estado === 'invalido' || linea.estado === 'repetido' || linea.estado === 'bloqueado') && (
                       <span className="ml-3 text-[11px] font-semibold">
-                        ✗ No se incluirá: {linea.estado === 'invalido' ? 'formato no válido' : `repetido (línea ${linea.repetidoDe})`}
+                        ✗ No se incluirá: {linea.estado === 'invalido' ? 'formato no válido' : linea.estado === 'bloqueado' ? 'está en la lista negra' : `repetido (línea ${linea.repetidoDe})`}
                       </span>
                     )}
                     {linea.estado === 'excede' && (
@@ -275,6 +311,12 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
                 className="focus-control numeros relative min-h-48 w-full resize-none whitespace-pre border-0 bg-transparent p-4 text-sm leading-6 text-transparent caret-texto placeholder:text-gris/70 selection:bg-azul/25 focus:outline-none focus:ring-0" />
             </div>
             <div id="resumen-lista-masiva" className="border-t border-borde text-[11px]">
+              {enListaNegra > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-peligro-10 px-4 py-2 text-peligro">
+                  <span>{fNumero(enListaNegra)} {enListaNegra === 1 ? 'está' : 'están'} en la lista negra (en rojo): no se consultarán ni se cobrarán.</span>
+                  <button type="button" onClick={quitarListaNegra} className="font-semibold underline underline-offset-2 hover:no-underline">Quitar los de la lista negra</button>
+                </div>
+              )}
               {noValidos > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-peligro-10 px-4 py-2 text-peligro">
                   <span>{fNumero(noValidos)} no válidos o repetidos (en rojo) se omiten solos; no tienes que quitarlos.</span>
@@ -289,7 +331,9 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
               <div className="flex flex-wrap items-center justify-between gap-2 bg-fondo/40 px-4 py-2 text-gris">
                 <span>{excluidos === 0 ? 'Un documento por línea. Se omiten encabezados.' : ''}</span>
                 <span className="numeros font-semibold text-texto">
-                  {fNumero(analisis.validos.length)} se incluirán en esta carga
+                  {revisandoListaNegra
+                    ? <span className="inline-flex items-center gap-1.5 text-gris"><Loader2 className="size-3 animate-spin" />Revisando la lista negra…</span>
+                    : `${fNumero(analisis.validos.length)} se incluirán en esta carga`}
                 </span>
               </div>
             </div>
@@ -304,9 +348,15 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
             <input type="file" accept=".txt,.csv,text/plain,text/csv" className="sr-only" onChange={leerArchivo} disabled={ocupado} />
           </label>
         )}
-        {(analisis.validos.length > 0 || analisis.invalidos.length > 0) && (
+        {(analisis.validos.length > 0 || analisis.invalidos.length > 0 || enListaNegra > 0) && (
           <div className="numeros mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-[#f5f7fb] p-3 text-sm">
             {analisis.porTipo.map((t) => <Chip key={t.nombre} tono="verde">{fNumero(t.cantidad)} {t.nombre}</Chip>)}
+            {enListaNegra > 0 && (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <Chip tono="peligro">{fNumero(enListaNegra)} en lista negra (no se incluirán): {analisis.bloqueados.slice(0, 3).join(', ')}{enListaNegra > 3 ? '…' : ''}</Chip>
+                {fuente === 'archivo' && <button type="button" onClick={quitarListaNegra} disabled={ocupado} className="text-xs font-semibold text-peligro underline underline-offset-2 hover:no-underline disabled:opacity-50">Quitarlos</button>}
+              </span>
+            )}
             {analisis.duplicados > 0 && <Chip tono="peligro">{fNumero(analisis.duplicados)} repetidos (no se incluirán)</Chip>}
             {excedentes > 0 && <Chip tono="ambar">{fNumero(excedentes)} pendientes para la carga siguiente</Chip>}
             {analisis.invalidos.length > 0 && <Chip tono="peligro">{fNumero(analisis.invalidos.length)} no válidos (no se incluirán): {analisis.invalidos.slice(0, 3).join(', ')}{analisis.invalidos.length > 3 ? '…' : ''}</Chip>}
@@ -375,6 +425,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
                 <p className="text-base font-bold tracking-tight text-texto">Tu archivo está casi listo</p>
                 <p className="mt-1 max-w-xl text-sm leading-5 text-gris">{analisis.validos.length ? `${fNumero(analisis.validos.length)} ${etiqueta} y ${secciones.length} secciones seleccionadas.` : 'Confirma tu lista y las secciones para generar el Excel.'}</p>
                 {noValidos > 0 && analisis.validos.length > 0 && <p className="mt-1 text-xs font-medium text-peligro">{fNumero(noValidos)} se omiten por ser no válidos o repetidos.</p>}
+                {enListaNegra > 0 && analisis.validos.length > 0 && <p className="mt-1 text-xs font-medium text-peligro">{fNumero(enListaNegra)} se omiten por estar en la lista negra (sin costo).</p>}
                 {excedentes > 0 && fase.tipo !== 'listo' && <p className="mt-1 text-xs font-medium text-ambar">{fNumero(excedentes)} quedan pendientes para la carga siguiente.</p>}
                 {problema && !ocupado && <p className="mt-2 text-xs font-medium text-ambar">{problema}</p>}
               </div>
@@ -382,7 +433,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
             <Boton onClick={() => void procesar()} disabled={Boolean(problema) || ocupado} cargando={ocupado} className="group h-12 w-full shrink-0 px-6 shadow-lg shadow-azul/20 transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto">
               {!ocupado && <span className="grid size-7 place-items-center rounded-lg bg-white/15 transition-transform group-hover:scale-110"><Play className="size-3.5 fill-current" /></span>}
               {progresoSolicitud ? 'Continuar' : 'Generar Excel'}
-              <span className="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-bold">{analisis.validos.length ? fNumero(analisis.validos.length) : '—'}</span>
+              <span className="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-bold">{analisis.validos.length ? fNumero(analisis.validos.length) : SIN_DATO}</span>
             </Boton>
           </div>
           {ocupado && (

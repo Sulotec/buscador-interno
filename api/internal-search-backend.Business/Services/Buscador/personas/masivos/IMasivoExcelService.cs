@@ -8,6 +8,6 @@ namespace internal_search_backend.Business.Services.Buscador.personas.masivos
     public interface IMasivoExcelService
     {
         Task<BuscadorMasivoResponse> BuscarMasivoAsync(
-            Stream archivo, HashSet<string> secciones, CancellationToken ct);
+            Stream archivo, HashSet<string> secciones, IReadOnlySet<string> excluidos, CancellationToken ct);
     }
 }

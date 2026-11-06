@@ -1,6 +1,7 @@
 using internal_search.Domain.DTOs.buscador.empresa.individual;
 using internal_search_backend.Business.Services.Buscador.empresa.individual;
 using internal_search_backend.Business.Services.Tokens;
+using internal_search_backend.Business.Services.ListaNegra;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +23,12 @@ namespace internal_search_backend.Controllers.Buscador.empresa.individual
         private readonly IIndividualService _buscadorEmpresaService;
         private readonly ITokenService _tokens;
         private readonly ICacheConsultas _cache;
+        private readonly IListaNegraService _listaNegra;
 
-        public IndividualController(IIndividualService buscadorEmpresaService, ITokenService tokens, ICacheConsultas cache)
+        public IndividualController(IIndividualService buscadorEmpresaService, ITokenService tokens, ICacheConsultas cache,
+            IListaNegraService listaNegra)
         {
+            _listaNegra = listaNegra;
             _buscadorEmpresaService = buscadorEmpresaService;
             _tokens = tokens;
             _cache = cache;
@@ -43,6 +47,9 @@ namespace internal_search_backend.Controllers.Buscador.empresa.individual
         {
             try
             {
+                // Lista negra: un RUC 10 lleva el DNI de la persona; si está bloqueado responde 423 sin costo
+                await _listaNegra.VerificarAsync(this.Contexto(), "BUSQUEDA_EMPRESA_RUC", ruc);
+
                 // Llamada al servicio de aplicación
                 var resultado = await _tokens.EjecutarAsync(
                     this.Contexto(), CostoConsulta, "BUSQUEDA_EMPRESA_RUC", ruc,

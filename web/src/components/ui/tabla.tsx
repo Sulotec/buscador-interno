@@ -1,7 +1,13 @@
 'use client';
 import clsx from 'clsx';
 import { useState, type ReactNode } from "react";
+import { esVacio, SIN_DATO } from '@/lib/formato';
 import { Paginacion } from './paginacion';
+
+// Si una columna devuelve null, vacío o "null", la celda muestra el texto de "sin dato".
+const contenidoCelda = (valor: ReactNode) => (typeof valor === 'object' && valor !== null) || typeof valor === 'number' || typeof valor === 'boolean'
+  ? valor
+  : esVacio(valor) ? SIN_DATO : valor;
 
 export interface Columna<T> { titulo: string; celda: (fila: T) => ReactNode; derecha?: boolean; className?: string }
 
@@ -34,7 +40,7 @@ export function Tabla<T>({ columnas, filas, clave, vacio = 'Sin registros.', pag
             {filasVisibles.map((f, i) => (
               <tr key={clave(f, paginacion ? (paginaActual - 1) * tamano + i : i)} className={clsx('transition-colors duration-150 odd:bg-white even:bg-[#fafbfe] hover:bg-azul-10/70 [&:last-child>td]:border-b-0', filaClassName?.(f, i))}>
                 {columnas.map((c) => (
-                  <td key={c.titulo} className={clsx('whitespace-nowrap border-b border-borde/70 px-4 py-3 align-top text-texto sm:px-5', c.derecha && 'text-right', c.className)}>{c.celda(f)}</td>
+                  <td key={c.titulo} className={clsx('whitespace-nowrap border-b border-borde/70 px-4 py-3 align-top text-texto sm:px-5', c.derecha && 'text-right', c.className)}>{contenidoCelda(c.celda(f))}</td>
                 ))}
               </tr>
             ))}

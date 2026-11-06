@@ -30,7 +30,7 @@ namespace internal_search_backend.Infraestructure.Reniec
         public async Task<ReniecResponse> ConsultarAsync(string dni, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(_options.Token))
-                throw new ReniecNoDisponibleException("La consulta RENIEC no está configurada.");
+                throw new ReniecNoDisponibleException("La consulta de la ficha personal no está configurada.");
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get, $"{_options.BaseUrl}?dni={Uri.EscapeDataString(dni)}");
@@ -50,7 +50,7 @@ namespace internal_search_backend.Infraestructure.Reniec
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
                 _logger.LogError(ex, "No se pudo contactar al proveedor de RENIEC.");
-                throw new ReniecNoDisponibleException("No se pudo contactar al servicio de RENIEC.", ex);
+                throw new ReniecNoDisponibleException("No se pudo contactar al servicio de la ficha personal.", ex);
             }
 
             using (response)
@@ -70,14 +70,14 @@ namespace internal_search_backend.Infraestructure.Reniec
                 if (response.StatusCode == HttpStatusCode.TooManyRequests || codigo == "daily_limit_reached")
                 {
                     _logger.LogWarning("RENIEC: cupo diario del plan agotado (status {Status}, code {Code}).", (int)response.StatusCode, codigo);
-                    throw new ReniecNoDisponibleException("Se agotó el cupo diario de consultas RENIEC del plan del proveedor; se renueva cada día. Vuelve a intentarlo mañana.");
+                    throw new ReniecNoDisponibleException("Se agotó el cupo diario de consultas de la ficha personal del plan del proveedor; se renueva cada día. Vuelve a intentarlo mañana.");
                 }
 
                 if (!response.IsSuccessStatusCode || json is null || json["success"]?.GetValue<bool>() == false)
                 {
                     // No se registra el cuerpo completo: puede contener datos personales
                     _logger.LogError("RENIEC respondió {Status} (code {Code}).", (int)response.StatusCode, codigo);
-                    throw new ReniecNoDisponibleException("El servicio de RENIEC respondió con un error.");
+                    throw new ReniecNoDisponibleException("El servicio de la ficha personal respondió con un error.");
                 }
 
                 // El cupo del plan y el estado interno del proveedor no se exponen a los usuarios

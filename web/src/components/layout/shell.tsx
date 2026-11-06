@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import {
-  Building2, ChevronLeft, ClipboardList, Coins, FileSpreadsheet, Home, LogOut, Menu, ShieldAlert, UserSearch, Users, X,
+  Ban, Building2, ChevronLeft, ClipboardList, Coins, FileSpreadsheet, Home, LogOut, Menu, ShieldAlert, UserSearch, Users, X,
 } from 'lucide-react';
 import { Marca } from './marca';
 import { useSesion } from '@/modulos/sesion/proveedor';
@@ -38,6 +38,7 @@ const GRUPOS: Grupo[] = [
     enlaces: [
       { href: '/admin/usuarios', texto: 'Usuarios y tokens', icono: <Users className="size-[18px]" /> },
       { href: '/admin/auditoria', texto: 'Auditoría', icono: <ClipboardList className="size-[18px]" /> },
+      { href: '/admin/lista-negra', texto: 'Lista negra', icono: <Ban className="size-[18px]" /> },
     ],
   },
 ];

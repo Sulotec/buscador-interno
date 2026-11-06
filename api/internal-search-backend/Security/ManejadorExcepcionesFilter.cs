@@ -21,6 +21,15 @@ namespace internal_search_backend.Security
 
                 context.ExceptionHandled = true;
             }
+            else if (context.Exception is DocumentoBloqueadoException bloqueado)
+            {
+                // 423 (Locked): el DNI está en la lista negra. No se cobró nada. Solo va el mensaje: el motivo y
+                // quién lo bloqueó los ve únicamente ADMIN GENERAL en "Lista negra".
+                context.Result = new ObjectResult(new { message = bloqueado.Message })
+                { StatusCode = StatusCodes.Status423Locked };
+
+                context.ExceptionHandled = true;
+            }
             else if (context.Exception is ReniecNoDisponibleException reniec)
             {
                 // La consulta falló dentro de TokenService, que ya devolvió el token al usuario.

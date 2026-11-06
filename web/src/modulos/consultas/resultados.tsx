@@ -1,9 +1,9 @@
 'use client';
 // Presentacion de resultados: resumen + una tarjeta por seccion (deudas, lineas, calificaciones, laboral, telefonos).
 import { useEffect, useState, type ReactNode } from 'react';
-import { Banknote, Briefcase, Building2, CalendarDays, ContactRound, CreditCard, Fingerprint, Gauge, IdCard, LucideIcon, MapPin, Phone, PhoneCall, Smartphone, UserRound, UsersRound } from 'lucide-react';
+import { Banknote, Briefcase, Building2, CalendarDays, CakeSlice, ContactRound, CreditCard, Fingerprint, Gauge, IdCard, LucideIcon, MapPin, Phone, PhoneCall, Smartphone, UserRound, UsersRound } from 'lucide-react';
 import { Chip, Tabla, Tarjeta, type Columna } from '@/components/ui';
-import { fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
+import { esVacio, fEdad, fFecha, fMoneda, fNumero, fPeriodo, fTexto, nombreCompleto, SIN_DATO } from '@/lib/formato';
 import type { PersonaOperador } from '@/modulos/personas/tipos';
 import type { Calificacion, Deuda, LineaCredito, Movil, Sueldo } from './tipos';
 import clsx from 'clsx';
@@ -26,7 +26,7 @@ export function Seccion({ titulo, icono, cantidad, children }: { titulo: string;
 }
 
 function PeriodoCelda({ periodo }: { periodo: string | null }) {
-  return <span className="inline-flex rounded-md bg-azul-10 px-2 py-1 text-xs font-semibold text-azul">{fPeriodo(periodo ?? '')}</span>;
+  return <span className="inline-flex rounded-md bg-azul-10 px-2 py-1 text-xs font-semibold text-azul">{fPeriodo(periodo)}</span>;
 }
 
 export function Operadora({ nombre }: { nombre: string | null }) {
@@ -45,7 +45,7 @@ export function Operadora({ nombre }: { nombre: string | null }) {
 }
 
 function DocumentoMovil({ documento }: { documento: string | null }) {
-  if (!documento) return <span className="text-gris">—</span>;
+  if (esVacio(documento) || !documento) return <span className="text-gris">{SIN_DATO}</span>;
   const digitos = documento.replace(/\D/g, '');
   const tipo = digitos.length === 11 ? 'RUC' : digitos.length === 8 ? 'DNI' : null;
   return (
@@ -61,7 +61,7 @@ const colDeudas: Columna<Deuda>[] = [
   { titulo: 'Entidad', celda: (d) => <span className="block max-w-64 whitespace-normal break-words font-semibold leading-5 text-texto" title={d.entidad ?? undefined}>{fTexto(d.entidad)}</span>, className: 'w-64 min-w-64 whitespace-normal' },
   { titulo: 'Tipo de deuda', celda: (d) => <span className="text-gris">{fTexto(d.tipoDeuda)}</span> },
   { titulo: 'Días', celda: (d) => <span className="font-medium">{fNumero(d.dias)}</span>, derecha: true },
-  { titulo: 'Clasificación', celda: (d) => d.calificacion ? <Chip tono={tonoCalificacion(d.calificacion)}>{d.calificacion}</Chip> : '—' },
+  { titulo: 'Clasificación', celda: (d) => !esVacio(d.calificacion) ? <Chip tono={tonoCalificacion(d.calificacion)}>{d.calificacion}</Chip> : SIN_DATO },
   { titulo: 'Saldo', celda: (d) => <span className="font-bold text-azul-oscuro">{fMoneda(d.saldo)}</span>, derecha: true },
 ];
 const colLineas: Columna<LineaCredito>[] = [
@@ -77,7 +77,7 @@ const colLineas: Columna<LineaCredito>[] = [
   }, derecha: true },
   { titulo: 'Disponible', celda: (l) => <span className="font-semibold text-verde">{fMoneda(l.lineaNoUtilizada)}</span>, derecha: true },
 ];
-const pct = (n: number | null) => (n == null ? '—' : `${n}%`);
+const pct = (n: number | null) => (n == null ? SIN_DATO : `${n}%`);
 const colCalificaciones: Columna<Calificacion>[] = [
   { titulo: 'Periodo', celda: (c) => <PeriodoCelda periodo={c.periodo} /> },
   { titulo: 'Normal', celda: (c) => <Chip tono="verde">{pct(c.nor)}</Chip>, derecha: true },
@@ -90,21 +90,23 @@ const colCalificaciones: Columna<Calificacion>[] = [
 const colSueldos: Columna<Sueldo>[] = [
   { titulo: 'Periodo', celda: (s) => <PeriodoCelda periodo={s.periodo} /> },
   { titulo: 'Empresa', celda: (s) => <span className="font-semibold">{fTexto(s.empresa)}<span className="mt-0.5 block text-xs font-normal text-gris">{s.ruc ? `RUC ${s.ruc}` : ''}</span></span> },
-  { titulo: 'Sueldo', celda: (s) => <span className="font-bold text-azul-oscuro">{fMoneda(s.montoSueldo)}</span>, derecha: true },
-  { titulo: 'Gratif./bono', celda: (s) => fMoneda(s.gratifBono), derecha: true },
-  { titulo: 'Ingreso anual est.', celda: (s) => fMoneda(s.ingresoEstimadoAnual), derecha: true },
+  // { titulo: 'Sueldo', celda: (s) => <span className="font-bold text-azul-oscuro">{fMoneda(s.montoSueldo)}</span>, derecha: true },
+  // { titulo: 'Gratif./bono', celda: (s) => fMoneda(s.gratifBono), derecha: true },
+  // { titulo: 'Ingreso anual est.', celda: (s) => fMoneda(s.ingresoEstimadoAnual), derecha: true },
   { titulo: 'Rango', celda: (s) => fTexto(s.rangoSueldo) },
   { titulo: 'Nivel', celda: (s) => fTexto(s.nivelIngreso) },
 ];
 const colPersonas: Columna<PersonaOperador>[] = [
-  { titulo: 'Tipo doc.', celda: (p) => <span className="inline-flex items-center gap-1.5"><IdCard aria-hidden className="size-3.5 shrink-0 text-gris" /><span className="rounded bg-[#f1f3f6] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-gris">{fTexto(p.tipoDoc)}</span></span> },
+  // { titulo: 'Tipo doc.', celda: (p) => <span className="inline-flex items-center gap-1.5"><IdCard aria-hidden className="size-3.5 shrink-0 text-gris" /><span className="rounded bg-[#f1f3f6] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-gris">{fTexto(p.tipoDoc)}</span></span> },
   { titulo: 'DNI', celda: (p) => <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide"><Fingerprint aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.dni)}</span> },
   { titulo: 'Fecha nacimiento', celda: (p) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-gris"><CalendarDays aria-hidden className="size-3.5 shrink-0" />{fFecha(p.fechaNacimiento)}</span> },
+  { titulo: 'Edad', celda: (p) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-texto"><CakeSlice aria-hidden className="size-3.5 shrink-0 text-azul" />{fEdad(p.fechaNacimiento)}</span> },
+
   { titulo: 'Apellido paterno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UserRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apePat)}</span> },
   { titulo: 'Apellido materno', celda: (p) => <span className="inline-flex items-center gap-1.5 font-medium text-texto"><UsersRound aria-hidden className="size-3.5 shrink-0 text-gris" />{fTexto(p.apeMat)}</span> },
   { titulo: 'Prenombres', celda: (p) => <span className="inline-flex items-center gap-1.5 font-semibold text-texto"><ContactRound aria-hidden className="size-3.5 shrink-0 text-azul" />{fTexto(p.prenombres)}</span> },
   // Descripción del ubigeo (RNC.Ubigeos); si el código no está en el catálogo se muestra el código
-  { titulo: 'UBIGEO RENIEC', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris" title={p.ubigeoReniec ? `Código ${p.ubigeoReniec}` : undefined}><MapPin aria-hidden className="size-3.5 shrink-0" /><span className={p.ubigeoDescripcion ? undefined : 'numeros'}>{fTexto(p.ubigeoDescripcion || p.ubigeoReniec)}</span></span> },
+  { titulo: 'Ubigeo', celda: (p) => <span className="inline-flex items-center gap-1.5 text-gris" title={p.ubigeoReniec ? `Código ${p.ubigeoReniec}` : undefined}><MapPin aria-hidden className="size-3.5 shrink-0" /><span className={p.ubigeoDescripcion ? undefined : 'numeros'}>{fTexto(p.ubigeoDescripcion || p.ubigeoReniec)}</span></span> },
 ];
 
 export function SeccionPersonas({ filas }: { filas?: PersonaOperador[] | null }) {
@@ -190,6 +192,8 @@ function useContador(objetivo: number | null, duracion = 900) {
 type ItemResumen = {
   titulo: string;
   nota: string;
+  // Clases para resaltar la nota como etiqueta de color (p. ej. el nivel de ingreso)
+  notaResaltada?: string;
   Icono: LucideIcon;
   paleta: Paleta;
   numero?: number | null;
@@ -198,10 +202,10 @@ type ItemResumen = {
 };
 
 function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number }) {
-  const { titulo, nota, Icono, paleta, numero, formato, texto } = item;
+  const { titulo, nota, notaResaltada, Icono, paleta, numero, formato, texto } = item;
   const p = PALETAS[paleta];
   const contado = useContador(numero ?? null);
-  const valor = texto ?? (numero == null ? '—' : formato ? formato(contado) : String(Math.round(contado)));
+  const valor = texto ?? (numero == null ? SIN_DATO : formato ? formato(contado) : String(Math.round(contado)));
 
   const rebote = 'ease-[cubic-bezier(0.34,1.56,0.64,1)]';
 
@@ -253,6 +257,7 @@ function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number })
         </p>
 
         <p
+          title={valor}
           className={clsx(
             'numeros mt-3 origin-left truncate text-xl font-bold tracking-tight transition-transform duration-500 sm:text-2xl',
             rebote,
@@ -263,31 +268,69 @@ function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number })
           {valor}
         </p>
 
-        <p className={clsx('mt-0.5 text-xs transition-opacity duration-300 group-hover:opacity-80', p.etiqueta)}>{nota}</p>
+        {notaResaltada
+          ? <p className="mt-1"><span className={clsx('inline-flex rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide', notaResaltada)}>{nota}</span></p>
+          : <p className={clsx('mt-0.5 text-xs transition-opacity duration-300 group-hover:opacity-80', p.etiqueta)}>{nota}</p>}
       </div>
     </article>
   );
+}
+
+// Valor de un rango de sueldo para compararlo: su monto más alto ("S/ 1,500 - 2,500" -> 2500).
+function topeRango(rango: string): number {
+  const montos = (rango.match(/\d[\d.,]*/g) ?? []).map((m) => Number(m.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.')));
+  return montos.length ? Math.max(...montos.filter((n) => !Number.isNaN(n))) : -1;
+}
+
+// Orden de los niveles de ingreso, de menor a mayor. Acepta textos (BAJO ... MUY ALTO) o letras (E ... A).
+function pesoNivel(nivel: string): number {
+  const v = nivel.trim().toUpperCase();
+  if (/^[A-E]\d?$/.test(v)) return 10 + ('EDCBA'.indexOf(v[0]));
+  if (v.includes('MUY ALTO')) return 6;
+  if (v.includes('MEDIO ALTO')) return 4;
+  if (v.includes('MEDIO BAJO')) return 2;
+  if (v.includes('ALTO')) return 5;
+  if (v.includes('MEDIO')) return 3;
+  if (v.includes('BAJO')) return 1;
+  return 0;
+}
+
+// Color del texto del nivel de ingreso: alto verde, medio naranja, bajo rojo.
+function claseNivel(nivel: string): string {
+  const peso = pesoNivel(nivel);
+  const tono = peso >= 10
+    ? (peso >= 13 ? 'alto' : peso === 12 ? 'medio' : 'bajo')
+    : peso >= 4 ? 'alto' : peso === 3 ? 'medio' : peso >= 1 ? 'bajo' : 'medio';
+  return { alto: 'bg-[#3B6D11] text-white', medio: 'bg-[#B45309] text-white', bajo: 'bg-[#A32D2D] text-white' }[tono];
+}
+
+function mayor<T>(valores: T[], peso: (v: T) => number): T | null {
+  return valores.reduce<T | null>((m, v) => (m === null || peso(v) > peso(m) ? v : m), null);
 }
 
 export function Resumen({ s }: { s: Secciones }) {
   const ultimoPeriodo = s.deudas.reduce((m, d) => (d.periodo > m ? d.periodo : m), '');
   const deudasRecientes = s.deudas.filter((d) => d.periodo === ultimoPeriodo);
   const total = deudasRecientes.reduce((t, d) => t + (d.saldo ?? 0), 0);
-  const entidades = new Set(deudasRecientes.map((d) => d.entidad)).size;
-  const orden = ['verde', 'ambar', 'peligro'] as const;
-  const peor = s.deudas.reduce<string | null>((p, d) => {
-    if (!d.calificacion) return p;
-    return !p || orden.indexOf(tonoCalificacion(d.calificacion) as typeof orden[number]) > orden.indexOf(tonoCalificacion(p) as typeof orden[number]) ? d.calificacion : p;
-  }, null);
-  const sueldo = (s.sueldos as Sueldo[]).find((x) => typeof x?.montoSueldo === 'number')?.montoSueldo ?? null;
+  const entidades = new Set(deudasRecientes.map((d) => d.entidad?.trim().toUpperCase()).filter(Boolean)).size;
 
-  const paletaPeor: Paleta = { verde: 'verde', ambar: 'coral', peligro: 'rojo', neutro: 'gris' }[tonoCalificacion(peor)] as Paleta;
+  // Saldo de líneas de crédito: suma de la línea disponible (no utilizada) del último periodo
+  const lineas = soloUltimoPeriodo(s.lineasCredito, periodoTipado);
+  const periodoLineas = lineas[0]?.periodo ?? '';
+  const disponible = lineas.reduce((t, l) => t + (l.lineaNoUtilizada ?? 0), 0);
+
+  // Sueldo estimado: el rango más alto y el nivel de ingreso más alto del último periodo
+  const sueldos = soloUltimoPeriodo((s.sueldos as Sueldo[]).filter((x) => x && typeof x === 'object'), (x) => String(x.periodo ?? ''));
+  const rangos = sueldos.map((x) => x.rangoSueldo).filter((r): r is string => !esVacio(r)).map((r) => r.trim());
+  const niveles = sueldos.map((x) => x.nivelIngreso).filter((n): n is string => !esVacio(n)).map((n) => n.trim());
+  const rangoAlto = mayor(rangos, topeRango);
+  const nivelAlto = mayor(niveles, pesoNivel);
 
   const items: ItemResumen[] = [
     { titulo: 'Deuda total', nota: ultimoPeriodo ? fPeriodo(ultimoPeriodo) : 'Sin deudas reportadas', numero: ultimoPeriodo ? total : null, formato: (n) => fMoneda(n), Icono: Banknote, paleta: 'violeta' },
-    { titulo: 'Entidades', nota: 'En el último periodo', numero: entidades, formato: (n) => fNumero(Math.round(n)), Icono: CreditCard, paleta: 'turquesa' },
-    { titulo: 'Peor calificación', nota: 'En el historial', texto: peor ?? '—', Icono: Gauge, paleta: paletaPeor },
-    { titulo: 'Sueldo reportado', nota: 'Último registro', numero: sueldo, formato: (n) => fMoneda(n), Icono: Briefcase, paleta: 'ambar' },
+    { titulo: 'Saldo de líneas de crédito', nota: lineas.length ? `Disponible · ${fPeriodo(periodoLineas)}` : 'Sin líneas reportadas', numero: lineas.length ? disponible : null, formato: (n) => fMoneda(n), Icono: CreditCard, paleta: 'verde' },
+    { titulo: 'N.º de entidades', nota: 'En el último periodo', numero: ultimoPeriodo ? entidades : null, formato: (n) => fNumero(Math.round(n)), Icono: Building2, paleta: 'turquesa' },
+    { titulo: 'Sueldo estimado reportado', nota: nivelAlto ?? 'Rango más alto reportado', notaResaltada: nivelAlto ? claseNivel(nivelAlto) : undefined, texto: rangoAlto ?? SIN_DATO, Icono: Briefcase, paleta: 'ambar' },
   ];
 
   return (

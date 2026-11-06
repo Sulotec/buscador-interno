@@ -81,7 +81,7 @@ namespace internal_search_backend.Business.Services.Reniec
                 if (propiedad.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
                     return null;
                 if (propiedad.Value.ValueKind != JsonValueKind.String)
-                    throw new InvalidDataException("La foto de RENIEC tiene un formato no válido.");
+                    throw new InvalidDataException("La foto de la ficha personal tiene un formato no válido.");
 
                 var contenido = propiedad.Value.GetString();
                 if (string.IsNullOrWhiteSpace(contenido))
@@ -92,13 +92,13 @@ namespace internal_search_backend.Business.Services.Reniec
                     var separador = contenido.IndexOf(',');
                     if (separador < 0 ||
                         !contenido[..separador].EndsWith(";base64", StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException("La foto de RENIEC tiene un formato no válido.");
+                        throw new InvalidDataException("La foto de la ficha personal tiene un formato no válido.");
                     contenido = contenido[(separador + 1)..];
                 }
 
                 var foto = Convert.FromBase64String(contenido);
                 if (foto.Length > MaximoBytesFoto)
-                    throw new InvalidDataException("La foto de RENIEC supera el tamaño permitido.");
+                    throw new InvalidDataException("La foto de la ficha personal supera el tamaño permitido.");
 
                 return foto;
             }

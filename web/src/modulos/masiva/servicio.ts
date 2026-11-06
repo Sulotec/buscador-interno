@@ -23,6 +23,9 @@ export const servicioMasiva = {
     datos.append('totalDnis', String(total));
     return api.post<{ mensaje: string }>('api/historial/masivo/historial', datos);
   },
+  // De la lista, los documentos que están en la lista negra (no cobra). Se usa para marcarlos antes de enviar.
+  listaNegra: (documentos: string[]) =>
+    api.post<{ bloqueados: string[] }>('api/buscador/masivo/lista-negra', { documentos }).then((r) => r.bloqueados ?? []),
   historial: (codUsuario: number) => api.get<HistorialDescarga[]>(`api/historial/usuario/${codUsuario}`),
   descargar: (h: HistorialDescarga) => descargar(`api/historial/${h.id}/descargar`, h.archivo),
 };

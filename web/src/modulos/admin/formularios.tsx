@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Aviso, Boton, Campo, Tabla, type Columna } from '@/components/ui';
 import { ErrorApi } from '@/lib/api';
-import { fFecha, fNumero } from '@/lib/formato';
+import { fFecha, fNumero, fTexto } from '@/lib/formato';
 import { servicioAdmin } from './servicio';
 import type { MovimientoToken, RolListado, UsuarioListado } from './tipos';
 
@@ -165,10 +165,10 @@ export function FormularioTokens({ usuario, alTerminar }: { usuario: UsuarioList
 
   const columnas: Columna<MovimientoToken>[] = [
     { titulo: 'Fecha', celda: (m) => fFecha(m.fecha, true) },
-    { titulo: 'Acción', celda: (m) => m.accion },
+    { titulo: 'Acción', celda: (m) => fTexto(m.accion) },
     { titulo: 'Cantidad', celda: (m) => <span className={m.cantidad < 0 ? 'text-peligro' : 'text-verde'}>{m.cantidad > 0 ? '+' : ''}{fNumero(m.cantidad)}</span>, derecha: true },
     { titulo: 'Saldo', celda: (m) => fNumero(m.saldoResultante), derecha: true },
-    { titulo: 'Detalle', celda: (m) => m.detalle ?? '—' },
+    { titulo: 'Detalle', celda: (m) => fTexto(m.detalle) },
   ];
 
   return (

@@ -10,6 +10,8 @@ namespace internal_search.Domain.DTOs.buscador.persona.masivos
         public int TotalSolicitados { get; set; }
         public List<string> DocumentosInvalidos { get; set; } = new();
         public List<string> DocumentosSinResultados { get; set; } = new();
+        // Documentos en la lista negra: no se consultan ni se cobran
+        public List<string> DocumentosNoDisponibles { get; set; } = new();
 
         // Una lista por pestaña
         public List<PersonaOperador> Personas { get; set; } = new();

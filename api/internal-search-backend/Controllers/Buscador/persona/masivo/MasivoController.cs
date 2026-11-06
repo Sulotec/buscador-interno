@@ -2,6 +2,7 @@
 using internal_search_backend.Business.Services.Buscador.personas.masivos;
 using internal_search_backend.Business.helpers;
 using internal_search_backend.Business.Services.Tokens;
+using internal_search_backend.Business.Services.ListaNegra;
 using internal_search_backend.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,15 +24,18 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
         private readonly IMasivoExcelService _masivoService;
         private readonly IBuscadorMasivoExcelService _excelService;
         private readonly ITokenService _tokens;
+        private readonly IListaNegraService _listaNegra;
 
         public MasivoController(
             IMasivoExcelService masivoService,
             IBuscadorMasivoExcelService excelService,
-            ITokenService tokens)
+            ITokenService tokens,
+            IListaNegraService listaNegra)
         {
             _masivoService = masivoService;
             _excelService = excelService;
             _tokens = tokens;
+            _listaNegra = listaNegra;
 
         }
 
@@ -62,6 +66,27 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
         //    }
         //}
 
+
+        public class VerificarListaNegraEntrada
+        {
+            public List<string> Documentos { get; set; } = new();
+        }
+
+        /// <summary>
+        /// De una lista de documentos, devuelve los que están en la lista negra, para marcarlos en la pantalla de
+        /// carga masiva antes de enviar. No cobra tokens. Sirve para personas (DNI, RUC 10) y empresas (RUC 10).
+        /// </summary>
+        [HttpPost("masivo/lista-negra")]
+        [EnableRateLimiting("consultas")]
+        public async Task<IActionResult> VerificarListaNegra([FromBody] VerificarListaNegraEntrada entrada, CancellationToken ct)
+        {
+            // Tope generoso: una lista pegada puede traer más de 5000 (el resto queda para la carga siguiente)
+            if (entrada.Documentos.Count > 20_000)
+                return BadRequest(new { message = "Se pueden revisar como máximo 20.000 documentos a la vez." });
+
+            var bloqueados = await _listaNegra.FiltrarBloqueadosAsync(entrada.Documentos, ct);
+            return Ok(new { bloqueados });
+        }
 
         [HttpPost("masivo/exportar")]
         [EnableRateLimiting("masivo")]
@@ -107,9 +132,15 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
                 }
 
                 // Cada documento válido cuesta 1 token; se cuenta antes de consultar.
-                var costo = DocumentoFileParser.Parse(new MemoryStream(contenido)).validos.Count;
+                // Los de la lista negra no se consultan ni se cobran.
+                var validos = DocumentoFileParser.Parse(new MemoryStream(contenido)).validos;
+                var bloqueados = await _listaNegra.FiltrarBloqueadosAsync(validos, ct);
+                var costo = validos.Count(d => !bloqueados.Contains(d.Trim()));
                 if (costo == 0)
-                    return BadRequest("El archivo no contiene documentos válidos.");
+                    return BadRequest(bloqueados.Count > 0
+                        ? $"Los {bloqueados.Count} documento(s) de la lista están en la lista negra y no se pueden consultar: " +
+                          $"{string.Join(", ", bloqueados.Take(10))}{(bloqueados.Count > 10 ? "…" : "")}. Quítalos de la lista para continuar."
+                        : "El archivo no contiene documentos válidos.");
 
                 // Se valida antes de cobrar para no descontar y devolver tokens sin necesidad.
                 if (costo > BuscadorMasivoService.MaxDocumentos)
@@ -117,8 +148,8 @@ namespace internal_search_backend.Controllers.Buscador.persona.masivo
 
                 var resultado = await _tokens.EjecutarAsync(
                     this.Contexto(), costo, "BUSQUEDA_MASIVA",
-                    $"{costo} documento(s); secciones: {string.Join(",", seleccionadas)}",
-                    () => _masivoService.BuscarMasivoAsync(new MemoryStream(contenido), seleccionadas, ct));
+                    $"{costo} documento(s); secciones: {string.Join(",", seleccionadas)}{(bloqueados.Count > 0 ? $"; {bloqueados.Count} en lista negra (excluidos)" : "")}",
+                    () => _masivoService.BuscarMasivoAsync(new MemoryStream(contenido), seleccionadas, bloqueados, ct));
 
                 var excel = _excelService.GenerarExcel(
                     resultado,

@@ -6,6 +6,9 @@ export class ErrorApi extends Error {
   }
 }
 
+type DetalleError = { mensaje: string; fueraDeSede: boolean };
+const errorDe = (d: DetalleError, estado: number) => new ErrorApi(d.mensaje, estado, d.fueraDeSede);
+
 const MENSAJES: Record<number, string> = {
   400: 'Revisa los datos ingresados.',
   401: 'Tu sesión terminó. Vuelve a iniciar sesión.',
@@ -20,7 +23,7 @@ const MENSAJES: Record<number, string> = {
   504: 'El servidor tardó demasiado en responder. Intenta de nuevo en unos minutos.',
 };
 
-async function mensajeDe(respuesta: Response): Promise<{ mensaje: string; fueraDeSede: boolean }> {
+async function mensajeDe(respuesta: Response): Promise<DetalleError> {
   const texto = await respuesta.text().catch(() => '');
   try {
     const datos = JSON.parse(texto);
@@ -49,8 +52,7 @@ export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promis
   });
   if (!respuesta.ok) {
     alExpirar(respuesta.status);
-    const { mensaje, fueraDeSede } = await mensajeDe(respuesta);
-    throw new ErrorApi(mensaje, respuesta.status, fueraDeSede);
+    throw errorDe(await mensajeDe(respuesta), respuesta.status);
   }
   if (respuesta.status === 204) return undefined as T;
   const texto = await respuesta.text();
@@ -62,6 +64,7 @@ export const api = {
   post: <T>(ruta: string, datos?: unknown) =>
     pedir<T>(ruta, { method: 'POST', body: datos instanceof FormData ? datos : JSON.stringify(datos ?? {}) }),
   put: <T>(ruta: string, datos?: unknown) => pedir<T>(ruta, { method: 'PUT', body: JSON.stringify(datos ?? {}) }),
+  eliminar: <T>(ruta: string) => pedir<T>(ruta, { method: 'DELETE' }),
 };
 
 function nombreDeArchivo(disposicion: string | null, porDefecto: string): string {
@@ -88,8 +91,8 @@ export function subirYDescargar(ruta: string, datos: FormData, alProgresar: (por
         return;
       }
       alExpirar(xhr.status);
-      const { mensaje, fueraDeSede } = await mensajeDe(new Response(xhr.response, { status: xhr.status }));
-      rechazar(new ErrorApi(mensaje, xhr.status, fueraDeSede));
+      const detalle = await mensajeDe(new Response(xhr.response, { status: xhr.status }));
+      rechazar(errorDe(detalle, xhr.status));
     };
     xhr.onerror = () => rechazar(new ErrorApi('No se pudo conectar con el Buscador.', 0));
     xhr.ontimeout = () => rechazar(new ErrorApi('La carga tardó demasiado. Prueba con menos documentos.', 0));
@@ -101,8 +104,7 @@ export async function descargar(ruta: string, porDefecto: string): Promise<Archi
   const respuesta = await fetch(`/backend/${ruta}`, { cache: 'no-store' });
   if (!respuesta.ok) {
     alExpirar(respuesta.status);
-    const { mensaje, fueraDeSede } = await mensajeDe(respuesta);
-    throw new ErrorApi(mensaje, respuesta.status, fueraDeSede);
+    throw errorDe(await mensajeDe(respuesta), respuesta.status);
   }
   return { blob: await respuesta.blob(), nombre: nombreDeArchivo(respuesta.headers.get('Content-Disposition'), porDefecto) };
 }
@@ -116,8 +118,7 @@ export async function enviarYDescargar(ruta: string, datos: unknown, porDefecto:
   });
   if (!respuesta.ok) {
     alExpirar(respuesta.status);
-    const { mensaje, fueraDeSede } = await mensajeDe(respuesta);
-    throw new ErrorApi(mensaje, respuesta.status, fueraDeSede);
+    throw errorDe(await mensajeDe(respuesta), respuesta.status);
   }
   return { blob: await respuesta.blob(), nombre: nombreDeArchivo(respuesta.headers.get('Content-Disposition'), porDefecto) };
 }
