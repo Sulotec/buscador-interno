@@ -37,8 +37,9 @@ export async function combinarExcels(archivos: Archivo[]): Promise<Archivo> {
       }
       await libro.xlsx.load(await zip.generateAsync({ type: 'arraybuffer' }));
     } catch (error) {
-      const detalle = error instanceof Error ? ` ${error.message}` : '';
-      throw new Error(`No se pudo leer el Excel del bloque ${numeroBloque}.${detalle}`);
+      // El detalle técnico (en inglés, de la librería) va a la consola; al usuario solo el mensaje claro
+      console.error(`Excel del bloque ${numeroBloque}:`, error);
+      throw new Error(`No se pudo leer el Excel del bloque ${numeroBloque}. Vuelve a procesar la carga; si se repite, avisa al administrador.`);
     }
     if (!libro.worksheets.length) {
       throw new Error(`El Excel del bloque ${numeroBloque} no contiene hojas de cálculo.`);

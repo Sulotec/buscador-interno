@@ -327,7 +327,9 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddControllers(options =>
     options.Filters.Add<ManejadorExcepcionesFilter>())
-    .AddControllersAsServices();
+    .AddControllersAsServices()
+    // Errores de validación en español y con { message } (por defecto ASP.NET responde en inglés)
+    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = RespuestaValidacion.Crear);
 builder.Services.AddProblemDetails();
 
 // Estado para monitoreo: GET /health responde 200 si la API alcanza la base de datos y 503 si no

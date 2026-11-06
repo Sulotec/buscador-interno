@@ -150,10 +150,10 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 .Distinct(StringComparer.OrdinalIgnoreCase).Count();
             var hayDeudas = ultimoPeriodo.Length == 6;
 
-            // Saldo de líneas de crédito: suma de la línea disponible (no utilizada) del último periodo
+            // Monto en líneas de crédito: suma de la columna "Línea de crédito" (monto total otorgado) del último periodo
             var lineas = SoloUltimoPeriodo(resultado.LineasCredito, linea => linea.Periodo);
             var periodoLineas = lineas.FirstOrDefault()?.Periodo;
-            var disponible = lineas.Sum(linea => linea.LineaNoUtilizada ?? 0m);
+            var montoLineas = lineas.Sum(linea => linea.LineaCreditoMonto ?? 0m);
 
             // Sueldo estimado: el rango más alto y el nivel de ingreso más alto del último periodo
             var sueldos = SoloUltimoPeriodo(resultado.Sueldos, sueldo => sueldo.Periodo);
@@ -167,9 +167,9 @@ namespace internal_search_backend.Business.Services.Buscador.personas.individual
                 TarjetaResumen(row.RelativeItem(), "Deuda total", hayDeudas ? FormatearPeriodo(ultimoPeriodo) : "Sin deudas reportadas",
                     hayDeudas ? FormatearMoneda(deudaTotal) : SinDato.Texto, "#534AB7", "#EEEDFE");
                 row.ConstantItem(7);
-                TarjetaResumen(row.RelativeItem(), "Saldo de líneas de crédito",
-                    lineas.Count > 0 ? $"Disponible · {FormatearPeriodo(periodoLineas)}" : "Sin líneas reportadas",
-                    lineas.Count > 0 ? FormatearMoneda(disponible) : SinDato.Texto, "#3B6D11", "#EAF3DE");
+                TarjetaResumen(row.RelativeItem(), "Monto en Líneas de Crédito",
+                    lineas.Count > 0 ? $"Total otorgado · {FormatearPeriodo(periodoLineas)}" : "Sin líneas reportadas",
+                    lineas.Count > 0 ? FormatearMoneda(montoLineas) : SinDato.Texto, "#3B6D11", "#EAF3DE");
                 row.ConstantItem(7);
                 TarjetaResumen(row.RelativeItem(), "N.º de entidades", "En el último periodo",
                     hayDeudas ? entidades.ToString(Cultura) : SinDato.Texto, "#0F6E56", "#E1F5EE");

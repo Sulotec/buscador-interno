@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { Banknote, BriefcaseBusiness, Check, ClipboardPaste, CreditCard, Database, FileSpreadsheet, FileUp, Gauge, HeartCrack, Loader2, Phone, Play, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Aviso, Boton, Chip, Pestanas, Tarjeta } from '@/components/ui';
-import { guardarArchivo, type Archivo } from '@/lib/api';
+import { guardarArchivo, mensajeDeError, type Archivo } from '@/lib/api';
 import { fNumero, SIN_DATO } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { LIMITE_DOCUMENTOS, TAMANO_BLOQUE_DOCUMENTOS, TAMANO_MAXIMO, analizar, crearArchivo, puedeEstarBloqueado, revisarLineas, seccionesDe, type TipoLista } from './documentos';
@@ -211,7 +211,7 @@ export function CargaMasiva({ tipo }: { tipo: TipoLista }) {
       setProgresoBloques(null);
       await servicioMasiva.guardarEnHistorial(resultado, secciones, analisis.validos.length).catch(() => null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo procesar la carga.');
+      setError(mensajeDeError(e, 'No se pudo procesar la carga. Intenta de nuevo en unos minutos.'));
       setFase({ tipo: 'lista' });
     } finally {
       actualizarSaldo();

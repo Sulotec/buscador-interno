@@ -341,6 +341,7 @@ Las URLs de *preview* de Vercel no están permitidas salvo que se agreguen.
 | `Recuperacion__FrontendResetUrl` | Sí | Enlace de los correos de recuperación |
 | `Email__Host/Port/EnableSsl/User/Password/From` | Para correos | SMTP; sin esto no salen invitaciones ni recuperaciones |
 | `Reniec__Token` | Para RENIEC | Token del proveedor |
+| `Reniec__IncluirHuellas` | No | `true` por defecto (appsettings): la ficha muestra huella derecha e izquierda. `false` las quita antes de enviarlas al front. No se guardan en la base |
 | `Proxy__ConfiarEnCabeceras` | Sí detrás del túnel | Ya lo fija `docker-compose.yml`. Sin esto todos los usuarios compartirían una IP y el límite de intentos los bloquearía a la vez |
 | `TUNNEL_TOKEN` | Con túnel | Token de Cloudflare |
 

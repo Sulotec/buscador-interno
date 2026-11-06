@@ -1,18 +1,19 @@
 'use client';
 // Ficha personal (datos de RENIEC) en un popup con formato de documento: cabecera, datos de identificación y firma.
-import type { ReactNode } from 'react';
-import { HeartCrack, ShieldAlert } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { FileDown, HeartCrack, ShieldAlert } from 'lucide-react';
 import clsx from 'clsx';
-import { Modal } from '@/components/ui';
+import { Boton, Modal } from '@/components/ui';
+import { guardarArchivo } from '@/lib/api';
 import { esVacio, fTexto, nombreCompleto } from '@/lib/formato';
 import type { ResultadoReniec } from './tipos';
 
-// ancho: ocupa toda la fila de la grilla; destacado: texto más grande (p. ej. el nombre)
+// Etiqueta arriba y valor abajo. destacado: texto más grande (p. ej. el nombre)
 // nota: explicación corta debajo del valor, para que se entienda qué significa
-function Dato({ titulo, valor, children, ancho, destacado, nota }:
-  { titulo: string; valor?: string | null; children?: ReactNode; ancho?: boolean; destacado?: boolean; nota?: ReactNode }) {
+function Dato({ titulo, valor, children, destacado, nota }:
+  { titulo: string; valor?: string | null; children?: ReactNode; destacado?: boolean; nota?: ReactNode }) {
   return (
-    <div className={clsx('min-w-0', ancho && 'col-span-full')}>
+    <div className="min-w-0">
       <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gris">{titulo}</dt>
       <dd className={clsx('mt-0.5 break-words uppercase text-texto', destacado ? 'text-base font-bold' : 'text-sm')}>{children ?? fTexto(valor)}</dd>
       {nota && <p className="mt-0.5 text-[11px] leading-4 text-gris">{nota}</p>}
@@ -30,9 +31,14 @@ function notaRestriccion(v?: string | null): string | undefined {
     : 'El DNI tiene una restricción registrada (p. ej. cancelado, caducado o con un trámite pendiente). Verifica su estado antes de usarlo.';
 }
 
-// Grilla de datos: 2 columnas en celular, 3 en pantallas medianas en adelante
+// Datos en filas (2 por fila en celular, 3 desde pantallas medianas) con una línea entre filas.
+// Cada dato lleva su borde inferior; el -mb-px dentro de overflow-hidden esconde el de la última fila.
 function Grilla({ children, className }: { children: ReactNode; className?: string }) {
-  return <dl className={clsx('grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3', className)}>{children}</dl>;
+  return (
+    <div className={clsx('overflow-hidden', className)}>
+      <dl className="-mb-px grid grid-cols-2 gap-x-6 md:grid-cols-3 [&>*]:border-b [&>*]:border-borde [&>*]:py-3">{children}</dl>
+    </div>
+  );
 }
 
 function Seccion({ numero, titulo, derecha, children }:
@@ -52,9 +58,11 @@ function Seccion({ numero, titulo, derecha, children }:
 function Biometrico({ titulo, src }: { titulo: string; src: string | null }) {
   return (
     <figure className="flex flex-col border border-borde">
-      <div className="grid h-36 place-items-center p-3">
+      {/* Alto fijo + h-full/w-full con object-contain: la imagen se ajusta al recuadro sin importar su tamaño real
+          (en una grilla, max-h-full no limita porque la fila crece con el contenido) */}
+      <div className="flex h-36 items-center justify-center overflow-hidden p-3">
         {src
-          ? <img src={src} alt={titulo} className="max-h-full max-w-full object-contain" />
+          ? <img src={src} alt={titulo} className="h-full w-full object-contain" />
           : <span className="text-xs text-gris">No disponible</span>}
       </div>
       <figcaption className="border-t border-borde bg-[#f5f7fb] py-2 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-azul">
@@ -64,7 +72,57 @@ function Biometrico({ titulo, src }: { titulo: string; src: string | null }) {
   );
 }
 
+// Los elementos con data-no-exportar (el propio botón) no salen en el PDF
+const exportable = (n: Node) => !(n instanceof HTMLElement && n.dataset.noExportar !== undefined);
+
+// Convierte la ficha tal como se ve en pantalla a una imagen y la pone en un A4 vertical,
+// escalada para que entre completa en una página. Las librerías se cargan solo al exportar.
+async function exportarFichaPdf(nodo: HTMLElement, dni: string) {
+  const [{ toPng }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
+  const png = await toPng(nodo, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, filter: exportable });
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+  const margen = 10;
+  const anchoPagina = pdf.internal.pageSize.getWidth() - margen * 2;
+  const altoPagina = pdf.internal.pageSize.getHeight() - margen * 2;
+  const { width, height } = pdf.getImageProperties(png);
+  const escala = Math.min(anchoPagina / width, altoPagina / height);
+  const ancho = width * escala;
+  const alto = height * escala;
+  pdf.addImage(png, 'PNG', margen + (anchoPagina - ancho) / 2, margen, ancho, alto, undefined, 'FAST');
+  pdf.setProperties({ title: `Ficha personal de registro - DNI ${dni}` });
+
+  guardarArchivo({ blob: pdf.output('blob'), nombre: `Ficha_Personal_${dni}.pdf` });
+}
+
+function BotonExportar({ objetivo, dni }: { objetivo: React.RefObject<HTMLDivElement | null>; dni: string }) {
+  const [exportando, setExportando] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function exportar() {
+    if (!objetivo.current) return;
+    setExportando(true);
+    setError(false);
+    try { await exportarFichaPdf(objetivo.current, dni); }
+    catch { setError(true); }
+    finally { setExportando(false); }
+  }
+
+  return (
+    <div data-no-exportar className="flex shrink-0 flex-col items-end gap-1">
+      <Boton onClick={exportar} cargando={exportando}
+        // "!" porque la variante primaria de Boton ya trae bg-azul / hover:bg-azul-oscuro
+        className="h-9 rounded-full bg-[#D93025]! px-4 shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#B3261E]! hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D93025]">
+        {!exportando && <FileDown aria-hidden className="size-4" />}
+        {exportando ? 'Generando PDF…' : 'Exportar PDF'}
+      </Boton>
+      {error && <span role="alert" className="text-[11px] text-peligro">No se pudo generar el PDF. Cierra la ficha, ábrela de nuevo y vuelve a intentar.</span>}
+    </div>
+  );
+}
+
 function ContenidoReniec({ r }: { r: ResultadoReniec }) {
+  const documento = useRef<HTMLDivElement>(null);
   const p = r.datos?.listaAni?.[0];
   if (!r.encontrado || !p) {
     return <p className="py-6 text-center text-sm text-gris">No se encontraron datos para el DNI {r.dni}.</p>;
@@ -77,16 +135,27 @@ function ContenidoReniec({ r }: { r: ResultadoReniec }) {
   const restriccion = !esVacio(p.deRestriccion) && !sinRestriccion(p.deRestriccion);
   const dni = p.nuDni ?? r.dni;
   const emitido = new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' });
-  const ubicacion = [p.distDireccion ?? p.distrito, p.provDireccion ?? p.provincia, p.depaDireccion ?? p.departamento]
-    .filter((x) => !esVacio(x)).join(' / ');
-  const vigencia = [p.feEmision, p.feCaducidad].map((x) => fTexto(x)).join('  a  ');
+  // RENIEC entrega dos lugares: distrito/provincia/departamento es el de nacimiento y
+  // distDireccion/provDireccion/depaDireccion el del domicilio (los códigos Ubigeo* son del domicilio)
+  const lugar = (...partes: (string | undefined)[]) => partes.filter((x) => !esVacio(x)).join(' / ') || null;
+  const ubigeoNacimiento = lugar(p.distrito, p.provincia, p.departamento);
+  const ubigeoDomicilio = lugar(p.distDireccion, p.provDireccion, p.depaDireccion);
+  const codigosDomicilio = [
+    !esVacio(p.UbigeoReniec) && `RENIEC ${p.UbigeoReniec}`,
+    !esVacio(p.UbigeoInei) && `INEI ${p.UbigeoInei}`,
+  ].filter(Boolean).join(' · ');
 
   return (
-    <div className="space-y-5">
-      {/* Cabecera del documento */}
+    <div ref={documento} className="space-y-5 bg-white">
+      {/* Cabecera del documento; el botón deja espacio a la X de cerrar del popup */}
       <header>
-        <h2 className="text-2xl font-bold tracking-wide text-texto">FICHA PERSONAL DE REGISTRO</h2>
-        <p className="mt-0.5 text-xs text-gris">Datos de identificación registrados para la persona consultada</p>
+        <div className="flex flex-wrap items-start justify-between gap-3 pr-10">
+          <div>
+            <h2 className="text-2xl font-bold tracking-wide text-texto">FICHA PERSONAL DE REGISTRO</h2>
+            <p className="mt-0.5 text-xs text-gris">Datos de identificación registrados para la persona consultada</p>
+          </div>
+          <BotonExportar objetivo={documento} dni={dni} />
+        </div>
         <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-borde pt-2 text-[11px] text-gris">
           <span className="numeros">Documento consultado: DNI {dni}</span>
           <span className="numeros">Emitido: {emitido}</span>
@@ -107,7 +176,7 @@ function ContenidoReniec({ r }: { r: ResultadoReniec }) {
               ? <img src={foto} alt={`Foto de DNI ${dni}`} className="h-44 w-36 border border-borde bg-white object-cover p-1" />
               : <div className="grid h-44 w-36 place-items-center border border-dashed border-borde text-xs text-gris">Sin foto</div>}
           </div>
-          <div className="min-w-0 flex-1 space-y-4">
+          <div className="min-w-0 flex-1">
             {/* Nombre y documento arriba, separados del resto */}
             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-borde pb-3">
               <Dato titulo="Apellidos y nombres" valor={nombreCompleto(p.apePaterno, p.apeMaterno, p.preNombres)} destacado />
@@ -127,21 +196,22 @@ function ContenidoReniec({ r }: { r: ResultadoReniec }) {
       </Seccion>
 
       <Seccion numero="II" titulo="Filiación y domicilio">
-        <Grilla className="p-4">
+        <Grilla className="px-4 py-1">
           <Dato titulo="Nombre del padre" valor={p.nomPadre} />
           <Dato titulo="Nombre de la madre" valor={p.nomMadre} />
-          <Dato titulo="Distrito / Provincia / Departamento" valor={ubicacion || null} />
-          <Dato titulo="Domicilio declarado" valor={p.desDireccion} ancho />
+          <Dato titulo="Ubigeo de nacimiento" valor={ubigeoNacimiento} nota="Distrito / Provincia / Departamento" />
+          <Dato titulo="Ubigeo de domicilio" valor={ubigeoDomicilio} nota={codigosDomicilio || 'Distrito / Provincia / Departamento'} />
+          <Dato titulo="Domicilio declarado" valor={p.desDireccion} />
         </Grilla>
       </Seccion>
 
       <Seccion numero="III" titulo="Datos del documento">
-        <Grilla className="p-4">
+        <Grilla className="px-4 py-1">
           <Dato titulo="Fecha de inscripción" valor={p.feInscripcion} />
-          <Dato titulo="Emisión / Caducidad">{vigencia}</Dato>
+          <Dato titulo="Fecha de emisión" valor={p.feEmision} />
+          <Dato titulo="Fecha de caducidad" valor={p.feCaducidad} />
+          <Dato titulo="Dona órganos" valor={p.donaOrganos} />
           <Dato titulo="Restricciones" valor={p.deRestriccion} nota={notaRestriccion(p.deRestriccion)} />
-          <Dato titulo="Donación de órganos" valor={p.donaOrganos} />
-          {fallecido && <Dato titulo="Fecha de fallecimiento" valor={p.feFallecimiento} />}
         </Grilla>
       </Seccion>
 

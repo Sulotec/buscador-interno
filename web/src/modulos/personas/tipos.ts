@@ -30,6 +30,8 @@ export interface ReniecPersona {
   desDireccion?: string; distDireccion?: string; provDireccion?: string; depaDireccion?: string; distrito?: string;
   provincia?: string; departamento?: string; nomPadre?: string; nomMadre?: string; feFallecimiento?: string;
   observacion?: string;
+  // Códigos del ubigeo del domicilio (distDireccion/provDireccion/depaDireccion) en cada catálogo
+  UbigeoReniec?: string; UbigeoInei?: string; UbigeoSunat?: string;
 }
 
 export interface ResultadoReniec {

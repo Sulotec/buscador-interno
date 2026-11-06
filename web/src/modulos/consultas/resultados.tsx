@@ -169,24 +169,39 @@ const PALETAS = {
 
 type Paleta = keyof typeof PALETAS;
 
-// Cuenta desde 0 hasta el valor (respeta "reducir movimiento")
-function useContador(objetivo: number | null, duracion = 900) {
-  const [valor, setValor] = useState(0);
+// Avance de 0 a 1 (con frenado al final) para contar desde 0 hasta el valor. Se reinicia cuando cambia "clave".
+function useProgreso(clave: unknown, activo: boolean, duracion = 900) {
+  const [progreso, setProgreso] = useState(0);
   useEffect(() => {
-    if (objetivo == null) return;
-    // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setValor(objetivo); return; }
+    if (!activo) return;
+    // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setProgreso(1); return; }
     let inicio: number | null = null;
     let id = 0;
     const paso = (t: number) => {
       if (inicio === null) inicio = t;
       const p = Math.min((t - inicio) / duracion, 1);
-      setValor(objetivo * (1 - Math.pow(1 - p, 3)));
+      setProgreso(1 - Math.pow(1 - p, 3));
       if (p < 1) id = requestAnimationFrame(paso);
     };
     id = requestAnimationFrame(paso);
     return () => cancelAnimationFrame(id);
-  }, [objetivo, duracion]);
-  return valor;
+  }, [clave, activo, duracion]);
+  return progreso;
+}
+
+// Anima los números dentro de un texto (p. ej. "S/ 2,501 - 3,000"): cada número cuenta desde 0
+// según el progreso, conservando el separador de miles y los decimales del original.
+function animarNumerosEnTexto(texto: string, progreso: number): string {
+  if (progreso >= 1) return texto;
+  return texto.replace(/\d[\d,]*(?:\.\d+)?/g, (token) => {
+    const valor = Number(token.replace(/,/g, ''));
+    if (!Number.isFinite(valor)) return token;
+    const decimales = token.includes('.') ? token.split('.')[1].length : 0;
+    const actual = valor * progreso;
+    return token.includes(',')
+      ? actual.toLocaleString('en-US', { minimumFractionDigits: decimales, maximumFractionDigits: decimales })
+      : actual.toFixed(decimales);
+  });
 }
 
 type ItemResumen = {
@@ -199,13 +214,20 @@ type ItemResumen = {
   numero?: number | null;
   formato?: (n: number) => string;
   texto?: string;
+  // El valor va sobre un fondo sombreado del color de la tarjeta, para destacarlo (p. ej. la sumatoria de líneas)
+  sombreado?: boolean;
 };
 
 function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number }) {
-  const { titulo, nota, notaResaltada, Icono, paleta, numero, formato, texto } = item;
+  const { titulo, nota, notaResaltada, Icono, paleta, numero, formato, texto, sombreado } = item;
   const p = PALETAS[paleta];
-  const contado = useContador(numero ?? null);
-  const valor = texto ?? (numero == null ? SIN_DATO : formato ? formato(contado) : String(Math.round(contado)));
+  // Números (monto, entidades) y textos con números (rango de sueldo) cuentan desde 0 al consultar
+  const animable = texto != null ? texto !== SIN_DATO && /\d/.test(texto) : numero != null;
+  const progreso = useProgreso(texto ?? numero, animable);
+  const valor = texto != null
+    ? (animable ? animarNumerosEnTexto(texto, progreso) : texto)
+    : numero == null ? SIN_DATO
+    : formato ? formato(numero * progreso) : String(Math.round(numero * progreso));
 
   const rebote = 'ease-[cubic-bezier(0.34,1.56,0.64,1)]';
 
@@ -263,6 +285,7 @@ function TarjetaResumen({ item, indice }: { item: ItemResumen; indice: number })
             rebote,
             'group-hover:scale-105',
             p.valor,
+            sombreado && clsx('w-fit max-w-full rounded-lg px-2 py-0.5 shadow-sm', p.marco),
           )}
         >
           {valor}
@@ -314,10 +337,10 @@ export function Resumen({ s }: { s: Secciones }) {
   const total = deudasRecientes.reduce((t, d) => t + (d.saldo ?? 0), 0);
   const entidades = new Set(deudasRecientes.map((d) => d.entidad?.trim().toUpperCase()).filter(Boolean)).size;
 
-  // Saldo de líneas de crédito: suma de la línea disponible (no utilizada) del último periodo
+  // Monto en líneas de crédito: suma de la columna "Línea de crédito" (monto total otorgado) del último periodo
   const lineas = soloUltimoPeriodo(s.lineasCredito, periodoTipado);
   const periodoLineas = lineas[0]?.periodo ?? '';
-  const disponible = lineas.reduce((t, l) => t + (l.lineaNoUtilizada ?? 0), 0);
+  const montoLineas = lineas.reduce((t, l) => t + (l.lineaCreditoMonto ?? 0), 0);
 
   // Sueldo estimado: el rango más alto y el nivel de ingreso más alto del último periodo
   const sueldos = soloUltimoPeriodo((s.sueldos as Sueldo[]).filter((x) => x && typeof x === 'object'), (x) => String(x.periodo ?? ''));
@@ -328,7 +351,7 @@ export function Resumen({ s }: { s: Secciones }) {
 
   const items: ItemResumen[] = [
     { titulo: 'Deuda total', nota: ultimoPeriodo ? fPeriodo(ultimoPeriodo) : 'Sin deudas reportadas', numero: ultimoPeriodo ? total : null, formato: (n) => fMoneda(n), Icono: Banknote, paleta: 'violeta' },
-    { titulo: 'Saldo de líneas de crédito', nota: lineas.length ? `Disponible · ${fPeriodo(periodoLineas)}` : 'Sin líneas reportadas', numero: lineas.length ? disponible : null, formato: (n) => fMoneda(n), Icono: CreditCard, paleta: 'verde' },
+    { titulo: 'Monto en Líneas de Crédito', nota: lineas.length ? `Total otorgado · ${fPeriodo(periodoLineas)}` : 'Sin líneas reportadas', numero: lineas.length ? montoLineas : null, formato: (n) => fMoneda(n), Icono: CreditCard, paleta: 'verde', sombreado: true },
     { titulo: 'N.º de entidades', nota: 'En el último periodo', numero: ultimoPeriodo ? entidades : null, formato: (n) => fNumero(Math.round(n)), Icono: Building2, paleta: 'turquesa' },
     { titulo: 'Sueldo estimado reportado', nota: nivelAlto ?? 'Rango más alto reportado', notaResaltada: nivelAlto ? claseNivel(nivelAlto) : undefined, texto: rangoAlto ?? SIN_DATO, Icono: Briefcase, paleta: 'ambar' },
   ];

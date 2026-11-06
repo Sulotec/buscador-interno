@@ -83,7 +83,10 @@ async function reenviar(req: NextRequest, { params }: Contexto) {
       cache: 'no-store',
       signal: AbortSignal.timeout(300_000),
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      return json({ message: 'El servidor tardó demasiado en responder. Intenta de nuevo en unos minutos.' }, 504);
+    }
     return json({ message: 'No se pudo conectar con el Buscador. Intenta de nuevo en unos minutos.' }, 502);
   }
 
@@ -91,7 +94,13 @@ async function reenviar(req: NextRequest, { params }: Contexto) {
   if (camino === 'system/auth/login') {
     const datos = await respuesta.json().catch(() => null);
     if (!respuesta.ok || !datos || datos.estado !== 1 || !datos.token) {
-      return json(datos ?? { message: 'Usuario o contraseña incorrectos.' }, respuesta.ok ? 401 : respuesta.status);
+      // Sin mensaje propio de la API, el texto depende del estado: una caída del servidor
+      // no debe mostrarse como "contraseña incorrecta"
+      const porDefecto = respuesta.status >= 500 ? 'El servidor no está disponible en este momento. Intenta de nuevo en unos minutos.'
+        : respuesta.status === 429 ? 'Demasiados intentos. Espera un momento y vuelve a intentar.'
+        : 'Usuario o contraseña incorrectos.';
+      const mensaje = typeof datos?.message === 'string' && datos.message.trim() ? datos.message : porDefecto;
+      return json({ ...(datos && typeof datos === 'object' ? datos : {}), message: mensaje }, respuesta.ok ? 401 : respuesta.status);
     }
     const roles: string[] = (datos.usuario?.roles ?? []).map((r: { rol: string }) => String(r.rol).toUpperCase());
     if (!esAdminGeneral(roles) && !enSede(ip)) {

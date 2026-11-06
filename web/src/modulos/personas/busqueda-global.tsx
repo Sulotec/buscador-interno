@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Check, ChevronDown, HeartCrack, IdCard, Phone, Search, UserRound, X } from 'lucide-react';
 import { Aviso, Boton, Cargando, Tarjeta, Vacio } from '@/components/ui';
-import { ErrorApi } from '@/lib/api';
+import { mensajeDeError } from '@/lib/api';
 import { fPeriodo, fTexto, nombreCompleto } from '@/lib/formato';
 import { useSesion } from '@/modulos/sesion/proveedor';
 import { useEstadoConsultas } from '@/modulos/consultas/estado';
@@ -118,7 +118,7 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
       if (!mantenerTelefono && !mantenerResultado) setResultado({ tipo: 'documento', valor: respuesta });
       alEncontrarDocumento(tipoDocumento, respuesta, mantenerTelefono);
     } catch (e) {
-      setError(e instanceof ErrorApi || e instanceof Error ? e.message : 'No se pudo cargar la información del cliente.');
+      setError(mensajeDeError(e, 'No se pudo cargar la información del cliente.'));
     } finally {
       setCargando(false);
       actualizarGlobal({ cargandoFicha: false });
@@ -183,7 +183,7 @@ export function BusquedaGlobalPersonas({ activa, documentoTelefonoSeleccionado, 
         alEncontrarDocumento(tipo, respuesta);
       }
     } catch (e) {
-      setError(e instanceof ErrorApi || e instanceof Error ? e.message : 'No se pudo realizar la búsqueda.');
+      setError(mensajeDeError(e, 'No se pudo realizar la búsqueda.'));
     } finally {
       setCargando(false);
       alCambiarCarga(false);
